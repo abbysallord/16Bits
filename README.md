@@ -7,7 +7,7 @@
 
 - **Live Web Console**: [https://16bits-omniops.vercel.app](https://16bits-omniops.vercel.app)
 - **Live Backend API**: [https://one6bits.onrender.com](https://one6bits.onrender.com)
-- **Global npm Package**: [`omniops@1.0.2`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
+- **Global npm Package**: [`omniops@1.0.3`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
 - **Interactive Documentation**: [https://16bits-omniops.vercel.app/docs](https://16bits-omniops.vercel.app/docs)
 - **Demo Video Walkthrough**: TODO - add the real video link before submission
 - **Challenge Theme**: Agentic AI & Intelligent Systems
