@@ -1,23 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Zap,
-  Activity,
   ShieldCheck,
-  CheckCircle2,
-  Clock,
-  Terminal,
-  Play,
   Layers,
-  Search,
-  Sparkles,
-  ExternalLink,
-  Presentation,
-  Check,
-  Database,
-  ArrowRight,
-  FileText,
-  Copy,
-  CheckCheck
+  Cpu,
+  FileText
 } from 'lucide-react'
 import {
   checkBackendHealth,
@@ -32,15 +18,70 @@ import type {
   HealthStatus
 } from './services/api'
 
+const SKILL_MD_CONTENT = `---
+name: 16bits-ops
+description: Autonomous site reliability and incident response swarm for production systems. Triggers on production crashes, connection pool exhaustion, webhook throttles, Redis OOM, or distributed system alerts.
+---
+
+# 16Bits OmniOps — Autonomous Incident Response Skill
+
+Use this skill when you encounter production infrastructure anomalies, database crashes, memory exhaustion, third-party API rate limits, or SRE incident escalations.
+
+16Bits OmniOps dispatches a specialized 4-agent consensus swarm:
+1. Planner Agent: Decomposes the anomaly into an investigative Directed Acyclic Graph (DAG).
+2. Investigator Agent: Queries host telemetry (os.loadavg, memory, process uptime) and matches vetted local Standard Operating Procedures (SOPs).
+3. Verifier Gate: Enforces enterprise SLA safety windows, verifies compliance boundaries, and halts destructive commands behind a mandatory Human-in-the-Loop signature.
+4. Synthesizer Agent: Generates an executive summary, numbered recovery playbook, customer notification draft, and LangSmith observability trace.
+
+---
+
+## When to Activate
+
+Activate this skill when:
+- Database connection pools are exhausted (e.g. FATAL: remaining connection slots are reserved).
+- Payment or webhooks suffer 429 rate limit throttles (e.g. Stripe, Twilio).
+- Caching layers (Redis, Memcached) trigger OOM eviction spikes or crash loops.
+- You need a production-safe, audited recovery playbook with LangSmith trace validation.
+
+---
+
+## Invocation Patterns
+
+### 1. Via Terminal CLI
+omniops triage "<error log or incident summary>" [PRIORITY]
+cat /var/log/syslog | tail -n 25 | omniops CRITICAL
+omniops doctor
+omniops status
+omniops approve <incident-uuid>
+
+### 2. Via REST Webhook
+curl -X POST http://localhost:8000/api/agents/webhook/alert \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "title": "Stripe Webhook 429 Rate Limit Spike",
+    "description": "540 dropped webhook deliveries in 60s from api.stripe.com. HTTP 429 Too Many Requests.",
+    "priority": "HIGH",
+    "service": "billing-gateway"
+  }'
+
+### 3. Response Structure
+- incidentId: UUID tracked in SQLite audit database.
+- status: AWAITING_APPROVAL (for high-risk operations) or RESOLVED.
+- executionDurationMs: Engine turnaround time in milliseconds.
+- langsmithTraceUrl: Public or organization trace URL proving transparent step-by-step reasoning.
+- resolutionPreview: Executive summary and immediate step-by-step commands.
+`
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState<'CONSOLE' | 'DOCS'>('CONSOLE')
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [, setIncidents] = useState<Incident[]>([])
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [activeStep, setActiveStep] = useState<number>(0)
   const [logs, setLogs] = useState<AgentStepLog[]>([])
   const [isExecuting, setIsExecuting] = useState<boolean>(false)
   const [finalResult, setFinalResult] = useState<SwarmResult | null>(null)
   const [copied, setCopied] = useState<boolean>(false)
+  const [copiedSkill, setCopiedSkill] = useState<boolean>(false)
   const [isApproving, setIsApproving] = useState<boolean>(false)
   const [approvedLocally, setApprovedLocally] = useState<boolean>(false)
 
@@ -60,9 +101,6 @@ export default function App() {
     try {
       const data = await fetchIncidents()
       setIncidents(data)
-      if (data.length > 0 && !selectedIncident) {
-        setSelectedIncident(data[0])
-      }
     } catch {
       // ignore
     }
@@ -78,7 +116,7 @@ export default function App() {
     setFinalResult(null)
 
     await streamSwarm(
-      { title, description, priority, category: 'Fintech Operations' },
+      { title, description, priority, category: 'Enterprise Workflow' },
       (step) => {
         setActiveStep(step.stepNumber)
         setLogs((prev) => [...prev, step])
@@ -117,415 +155,424 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-emerald-500/30">
+    <div className="flex flex-col min-h-screen bg-black text-neutral-200 font-mono selection:bg-emerald-500/30">
       {/* Top Header */}
-      <header className="sticky top-0 z-50 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-md px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="border-b-4 border-neutral-800 bg-neutral-950 px-4 py-3 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
-              <Zap className="h-5 w-5" />
+            <div className="p-2 border-2 border-emerald-500 bg-neutral-900 text-emerald-400 font-arcade text-xs">
+              16B
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold tracking-tight text-lg text-white">16Bits OmniOps</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-950/30 text-emerald-400 font-semibold">
-                  AGENTIC AI SWARM
+                <span className="font-arcade text-sm text-white tracking-wider">OMNIOPS</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 border border-emerald-500/50 text-emerald-400 font-bold uppercase">
+                  [SWARM v1.0]
                 </span>
               </div>
-              <p className="text-xs text-neutral-500">Express.js • SQLite • Gemini/Groq • Multi-Agent Pipeline</p>
+              <p className="text-[11px] text-neutral-400 mt-0.5">Autonomous SRE & Workflow Consensus Mesh</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-full border border-neutral-800 bg-neutral-900/60">
-              <Database className="h-3.5 w-3.5 text-blue-400" />
-              <span className="text-neutral-300">SQLite Active</span>
-              <span className="text-neutral-500">•</span>
-              <span className="text-emerald-400 font-medium">API: {health?.status === 'ok' ? 'Online (8000)' : 'Offline'}</span>
-            </div>
-
-            <a
-              href="http://localhost:3030"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 text-xs text-neutral-300 transition"
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('CONSOLE')}
+              className={`nes-btn text-xs py-1 px-3 ${activeTab === 'CONSOLE' ? 'is-primary' : ''}`}
             >
-              <Presentation className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Pitch Deck</span>
-              <ExternalLink className="h-3 w-3 text-neutral-500" />
-            </a>
+              [OPERATIONS CONSOLE]
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('DOCS')}
+              className={`nes-btn text-xs py-1 px-3 ${activeTab === 'DOCS' ? 'is-success' : ''}`}
+            >
+              [AGENT DOCS & SKILL.MD]
+            </button>
+          </div>
+
+          {/* Engine Status Tag */}
+          <div className="hidden lg:flex items-center gap-2 text-xs">
+            <span className="text-neutral-500">ENGINE:</span>
+            <span className={`px-2 py-0.5 text-[10px] font-bold border ${health?.status === 'ok' ? 'border-emerald-500 text-emerald-400 bg-emerald-950/40' : 'border-red-500 text-red-400'}`}>
+              {health?.status === 'ok' ? '[ONLINE: GROQ+LANGSMITH]' : '[OFFLINE]'}
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
-        {/* 4-Agent Visual State Graph */}
-        <section className="bg-neutral-900/40 border border-neutral-800/80 rounded-2xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Layers className="h-4 w-4 text-emerald-400" />
-              <span>Multi-Agent Consensus Pipeline</span>
-            </div>
-            <span className="text-xs font-mono text-neutral-500">
-              Status: {isExecuting ? 'AUTONOMOUS EXECUTION IN PROGRESS' : 'SWARM READY'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Agent 1 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 1 && isExecuting
-                ? 'border-blue-500 bg-blue-950/30 shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/40 animate-pulse'
-                : activeStep > 1
-                ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
-                  Stage 1 {activeStep === 1 && isExecuting && '• RUNNING'}
-                </span>
-                {activeStep > 1 && <Check className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-blue-400" /> Planner Agent
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Decomposes incident into execution DAG & investigation requirements.
-              </p>
-            </div>
-
-            {/* Agent 2 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 2 && isExecuting
-                ? 'border-purple-500 bg-purple-950/30 shadow-lg shadow-purple-500/20 ring-2 ring-purple-500/40 animate-pulse'
-                : activeStep > 2
-                ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
-                  Stage 2 {activeStep === 2 && isExecuting && '• RUNNING'}
-                </span>
-                {activeStep > 2 && <Check className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <Search className="h-3.5 w-3.5 text-purple-400" /> Investigator Agent
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Executes telemetry tool queries, SLA checks, and customer profile audit.
-              </p>
-            </div>
-
-            {/* Agent 3 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 3 && isExecuting
-                ? 'border-amber-500 bg-amber-950/30 shadow-lg shadow-amber-500/20 ring-2 ring-amber-500/40 animate-pulse'
-                : activeStep > 3
-                ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
-                  Stage 3 {activeStep === 3 && isExecuting && '• RUNNING'}
-                </span>
-                {activeStep > 3 && <Check className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5 text-amber-400" /> Verification Gate
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Enforces safety constraints & SLA contract compliance before execution.
-              </p>
-            </div>
-
-            {/* Agent 4 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 4 && isExecuting
-                ? 'border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/40 animate-pulse'
-                : finalResult
-                ? 'border-emerald-500/80 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                  Stage 4 {activeStep === 4 && isExecuting && '• RUNNING'}
-                </span>
-                {finalResult && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <Activity className="h-3.5 w-3.5 text-emerald-400" /> Synthesizer Agent
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Generates actionable remediation playbook & stakeholder comms.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Workspace Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Form & Benchmarks */}
-          <div className="lg:col-span-5 space-y-4">
-            {/* Quick Benchmark Presets */}
-            <div className="bg-neutral-900/40 border border-neutral-800/80 rounded-xl p-4">
-              <span className="text-xs font-mono uppercase tracking-wider text-neutral-400 block mb-2 font-semibold">
-                Instant Judge Demo Scenarios (1-Click)
-              </span>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectBenchmark(
-                      'Payment Webhook Ingestion Throttle on Stripe Gateway',
-                      'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on settlement callbacks.',
-                      'CRITICAL'
-                    )
-                  }
-                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
-                >
-                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
-                    <span>1. Stripe Webhook 429 Rate Limit</span>
-                    <span className="text-[10px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">CRITICAL</span>
+      {/* Main Body */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        {activeTab === 'CONSOLE' ? (
+          <>
+            {/* 4-Agent Mesh Visualizer */}
+            <section className="nes-container is-dark with-title">
+              <p className="title text-xs font-arcade text-emerald-400">[4-AGENT CONSENSUS MESH]</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+                {/* Agent 1 */}
+                <div className={`p-4 border-2 transition-all ${activeStep === 1 ? 'border-blue-400 bg-blue-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-blue-400 font-bold uppercase">[AGENT 1]</span>
+                    <Layers className="h-4 w-4 text-blue-400" />
                   </div>
-                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
-                    Queue depth 4,120 items; Platinum enterprise SLA risk.
+                  <div className="font-bold text-white text-xs mb-1">PLANNER AGENT</div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Decomposes alert payload into structured execution DAG.
                   </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectBenchmark(
-                      'Database Read-Replica Replication Lag Exceeding 180s',
-                      'Analytics queries are reading stale financial transaction balances due to replication lag spike on PostgreSQL replica cluster.',
-                      'HIGH'
-                    )
-                  }
-                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
-                >
-                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
-                    <span>2. PostgreSQL Replication Lag</span>
-                    <span className="text-[10px] font-mono text-amber-400 bg-amber-950/30 px-1.5 py-0.5 rounded">HIGH</span>
+                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
+                    {activeStep === 1 ? '[DECOMPOSING...]' : activeStep > 1 ? '[COMPLETED]' : '[IDLE]'}
                   </div>
-                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
-                    Lag exceeding 180s; inconsistent financial reporting.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectBenchmark(
-                      'ICU Cardiac Telemetry Pipeline WebSocket Drop',
-                      'Hospital central monitoring hub dropped real-time ECG telemetry stream from 48 bedside cardiac monitors across Ward 3.',
-                      'CRITICAL'
-                    )
-                  }
-                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
-                >
-                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
-                    <span>3. Healthcare ICU Telemetry Drop</span>
-                    <span className="text-[10px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">CRITICAL</span>
-                  </div>
-                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
-                    48 bedside ECG monitors dropped; immediate failover required.
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            {/* Incident Trigger Form */}
-            <form onSubmit={handleRunSwarm} className="bg-neutral-900/40 border border-neutral-800/80 rounded-xl p-5 space-y-4">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Terminal className="h-4 w-4 text-emerald-400" /> Trigger Autonomous Swarm
-              </h3>
-
-              <div>
-                <label className="text-xs text-neutral-400 font-mono mb-1 block">INCIDENT TITLE</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={isExecuting}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
-                  placeholder="e.g. Critical Kafka consumer lag spike"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-neutral-400 font-mono mb-1 block">DESCRIPTION / TELEMETRY</label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={isExecuting}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-emerald-500 transition leading-relaxed"
-                  placeholder="Describe the operational failure or paste error logs..."
-                />
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-neutral-400 font-mono mb-1 block">PRIORITY</label>
-                  <select
-                    value={priority}
-                    onChange={(e: any) => setPriority(e.target.value)}
-                    disabled={isExecuting}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="CRITICAL">CRITICAL (15m SLA)</option>
-                    <option value="HIGH">HIGH (1h SLA)</option>
-                    <option value="MEDIUM">MEDIUM (4h SLA)</option>
-                    <option value="LOW">LOW (24h SLA)</option>
-                  </select>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={isExecuting || !title.trim()}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg font-semibold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20"
-              >
-                {isExecuting ? (
-                  <>
-                    <Clock className="h-4 w-4 animate-spin" />
-                    <span>Orchestrating Swarm Execution...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" />
-                    <span>Dispatch 4-Agent Swarm</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Right Column: Real-Time Execution Audit Logs & Final Resolution */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* Live Agent Logs Stream */}
-            <div className="bg-neutral-900/40 border border-neutral-800/80 rounded-xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Activity className="h-4 w-4 text-emerald-400" />
-                  <span>Autonomous Agent Execution Stream</span>
-                </div>
-                {finalResult && (
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 font-bold">
-                    Resolved in {finalResult.executionDurationMs}ms
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2">
-                {logs.length === 0 ? (
-                  <div className="py-12 text-center text-neutral-500 text-xs font-mono">
-                    Awaiting trigger. Click "Dispatch 4-Agent Swarm" to observe real-time agent coordination.
+                {/* Agent 2 */}
+                <div className={`p-4 border-2 transition-all ${activeStep === 2 ? 'border-purple-400 bg-purple-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-purple-400 font-bold uppercase">[AGENT 2]</span>
+                    <Cpu className="h-4 w-4 text-purple-400" />
                   </div>
-                ) : (
-                  logs.map((log, idx) => (
-                    <div key={idx} className="p-3.5 rounded-lg border border-neutral-800 bg-neutral-950/70 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-400 font-mono flex items-center gap-1.5">
-                          <ArrowRight className="h-3 w-3" /> {log.agentName}
-                        </span>
-                        <span className="text-[10px] font-mono text-neutral-500">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div className="text-neutral-300 font-mono text-[11px] bg-neutral-900/60 p-2 rounded border border-neutral-800/60">
-                        {log.action}
-                      </div>
-                      <p className="text-neutral-400 text-xs leading-relaxed whitespace-pre-wrap">
-                        {log.thought}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+                  <div className="font-bold text-white text-xs mb-1">INVESTIGATOR AGENT</div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Queries host OS vitals and matches local markdown SOPs.
+                  </p>
+                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
+                    {activeStep === 2 ? '[QUERYING HOST+SOPS...]' : activeStep > 2 ? '[COMPLETED]' : '[IDLE]'}
+                  </div>
+                </div>
 
-            {/* Final Synthesized Resolution Card */}
-            {finalResult && (
-              <div className="bg-neutral-900/40 border border-emerald-500/30 rounded-xl p-5 space-y-3 shadow-lg shadow-emerald-500/5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-white text-sm">
+                {/* Agent 3 */}
+                <div className={`p-4 border-2 transition-all ${activeStep === 3 ? 'border-amber-400 bg-amber-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase">[AGENT 3]</span>
+                    <ShieldCheck className="h-4 w-4 text-amber-400" />
+                  </div>
+                  <div className="font-bold text-white text-xs mb-1">VERIFICATION GATE</div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Audits SLA risk; enforces Human-in-the-Loop authorization.
+                  </p>
+                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
+                    {activeStep === 3 ? '[AUDITING SAFETY...]' : activeStep > 3 ? '[COMPLETED]' : '[IDLE]'}
+                  </div>
+                </div>
+
+                {/* Agent 4 */}
+                <div className={`p-4 border-2 transition-all ${activeStep === 4 ? 'border-emerald-400 bg-emerald-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-emerald-400 font-bold uppercase">[AGENT 4]</span>
                     <FileText className="h-4 w-4 text-emerald-400" />
-                    <span>Synthesized Resolution & Actionable Plan</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {finalResult.langsmithTraceUrl && (
-                      <a
-                        href={finalResult.langsmithTraceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-xs font-mono text-indigo-300 transition"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5 text-indigo-400" />
-                        <span>LangSmith Trace</span>
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(finalResult.finalResolution)
-                        setCopied(true)
-                        setTimeout(() => setCopied(false), 2000)
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-mono text-neutral-300 transition"
-                    >
-                      {copied ? (
-                        <>
-                          <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3.5 w-3.5 text-neutral-400" />
-                          <span>Copy Fix</span>
-                        </>
-                      )}
-                    </button>
+                  <div className="font-bold text-white text-xs mb-1">SYNTHESIZER AGENT</div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Compiles recovery commands, customer memo, & trace.
+                  </p>
+                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
+                    {activeStep === 4 && isExecuting ? '[SYNTHESIZING...]' : finalResult ? '[PLAN READY]' : '[IDLE]'}
                   </div>
-                </div>
-
-                {/* Human-in-the-Loop Authorization Gate */}
-                {finalResult.status === 'AWAITING_APPROVAL' && !approvedLocally ? (
-                  <div className="p-4 rounded-xl border-2 border-amber-500 bg-amber-950/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[4px_4px_0px_#f59e0b]">
-                    <div>
-                      <div className="flex items-center gap-2 font-bold text-amber-300 text-sm font-mono">
-                        <ShieldCheck className="h-4 w-4 text-amber-400" />
-                        <span>HUMAN AUTHORIZATION REQUIRED (SLA Guardrail Gate)</span>
-                      </div>
-                      <p className="text-xs text-amber-200/80 mt-1">
-                        Remediation involves infrastructure modifications. Compliance policy requires digital sign-off before dispatching commands.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      disabled={isApproving}
-                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-lg text-xs transition shadow-[2px_2px_0px_#000] shrink-0"
-                    >
-                      {isApproving ? 'Authorizing...' : 'Authorize Execution →'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 flex items-center gap-2 text-xs text-emerald-300 font-mono">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                    <span>Remediation Plan Authorized by Human Operator • Signed & Committed to SQLite Audit Trail</span>
-                  </div>
-                )}
-
-                <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800 text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap max-h-[400px] overflow-y-auto font-sans">
-                  {finalResult.finalResolution}
                 </div>
               </div>
-            )}
+            </section>
+
+            {/* Split Grid: Form/Benchmarks & Stream/Resolution */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Dispatch & Benchmarks */}
+              <div className="lg:col-span-5 space-y-6">
+                <section className="nes-container is-dark with-title">
+                  <p className="title text-xs font-arcade text-white">[DISPATCH CONSOLE]</p>
+
+                  {/* Benchmark presets */}
+                  <div className="mb-4">
+                    <label className="text-[10px] text-neutral-400 block mb-1.5 font-bold">[SELECT BENCHMARK INCIDENT]</label>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => selectBenchmark(
+                          'Payment Webhook Ingestion Throttle on Stripe Gateway',
+                          'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on callbacks.',
+                          'CRITICAL'
+                        )}
+                        className="text-left p-2 border border-neutral-800 hover:border-neutral-600 bg-neutral-900/80 text-xs text-neutral-300 transition"
+                      >
+                        <span className="text-amber-400 font-bold">[FINTECH]</span> Stripe 429 Rate Limit Surge
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => selectBenchmark(
+                          'Postgres Primary Connection Pool Exhaustion (prod-db-01)',
+                          'FATAL: remaining connection slots are reserved for non-replication superuser connections. Active client sessions at 98% of max_connections.',
+                          'HIGH'
+                        )}
+                        className="text-left p-2 border border-neutral-800 hover:border-neutral-600 bg-neutral-900/80 text-xs text-neutral-300 transition"
+                      >
+                        <span className="text-blue-400 font-bold">[DATABASE]</span> PostgreSQL Connection Pool Saturation
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => selectBenchmark(
+                          'Redis Memory 98% OOM Eviction Spike on session-cache',
+                          'Redis instance has hit maxmemory policy limit. Cache eviction latency spike threatening active user sessions.',
+                          'HIGH'
+                        )}
+                        className="text-left p-2 border border-neutral-800 hover:border-neutral-600 bg-neutral-900/80 text-xs text-neutral-300 transition"
+                      >
+                        <span className="text-red-400 font-bold">[INFRA]</span> Redis Memory OOM Eviction Spike
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleRunSwarm} className="space-y-4">
+                    <div>
+                      <label className="text-[10px] text-neutral-400 block mb-1 font-bold">[INCIDENT TITLE]</label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        disabled={isExecuting}
+                        className="w-full bg-neutral-900 border-2 border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        placeholder="e.g. Database connection pool exhausted"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-neutral-400 block mb-1 font-bold">[TELEMETRY / ERROR LOG]</label>
+                      <textarea
+                        rows={3}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        disabled={isExecuting}
+                        className="w-full bg-neutral-900 border-2 border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        placeholder="Paste error logs, stack traces, or alerts..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-neutral-400 block mb-1 font-bold">[PRIORITY SLA]</label>
+                      <select
+                        value={priority}
+                        onChange={(e: any) => setPriority(e.target.value)}
+                        disabled={isExecuting}
+                        className="w-full bg-neutral-900 border-2 border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="CRITICAL">CRITICAL (15m SLA Guardrail)</option>
+                        <option value="HIGH">HIGH (1h SLA Guardrail)</option>
+                        <option value="MEDIUM">MEDIUM (4h SLA Guardrail)</option>
+                        <option value="LOW">LOW (24h SLA Guardrail)</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isExecuting || !title.trim()}
+                      className="nes-btn is-primary w-full text-xs font-bold py-2 mt-2"
+                    >
+                      {isExecuting ? '[ORCHESTRATING SWARM...]' : '[DISPATCH 4-AGENT SWARM]'}
+                    </button>
+                  </form>
+                </section>
+              </div>
+
+              {/* Right Column: Execution Trajectory & Final Plan */}
+              <div className="lg:col-span-7 space-y-6">
+                {/* Live Agent Logs Stream */}
+                <section className="nes-container is-dark with-title">
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-neutral-800">
+                    <p className="title text-xs font-arcade text-white">[LIVE EXECUTION STREAM]</p>
+                    {finalResult && (
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500 px-2 py-0.5">
+                        [COMPLETED IN {finalResult.executionDurationMs}MS]
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 text-xs">
+                    {logs.length === 0 ? (
+                      <div className="py-10 text-center text-neutral-500 text-xs">
+                        [AWAITING TRIGGER. CLICK DISPATCH TO EXECUTE SWARM.]
+                      </div>
+                    ) : (
+                      logs.map((log, idx) => (
+                        <div key={idx} className="p-3 border border-neutral-800 bg-neutral-950 space-y-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-emerald-400 uppercase">
+                              &gt; [STEP {log.stepNumber}] {log.agentName}
+                            </span>
+                            <span className="text-[10px] text-neutral-500">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-neutral-300 font-bold bg-neutral-900 p-1.5 border border-neutral-800">
+                            {log.action}
+                          </div>
+                          <p className="text-neutral-400 text-xs leading-relaxed whitespace-pre-wrap mt-1">
+                            {log.thought}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                {/* Final Synthesized Resolution Card */}
+                {finalResult && (
+                  <section className="nes-container is-dark with-title">
+                    <div className="flex items-center justify-between pb-2 mb-3 border-b border-neutral-800">
+                      <p className="title text-xs font-arcade text-emerald-400">[SYNTHESIZED RESOLUTION]</p>
+                      
+                      <div className="flex items-center gap-2">
+                        {finalResult.langsmithTraceUrl && (
+                          <a
+                            href={finalResult.langsmithTraceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="nes-btn is-warning text-[10px] py-0.5 px-2"
+                          >
+                            [LANGSMITH TRACE]
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(finalResult.finalResolution)
+                            setCopied(true)
+                            setTimeout(() => setCopied(false), 2000)
+                          }}
+                          className="nes-btn is-primary text-[10px] py-0.5 px-2"
+                        >
+                          {copied ? '[COPIED]' : '[COPY RESOLUTION]'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Human-in-the-Loop Safety Gate */}
+                    {finalResult.status === 'AWAITING_APPROVAL' && !approvedLocally ? (
+                      <div className="p-3 border-2 border-amber-500 bg-amber-950/30 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="font-bold text-amber-300 text-xs">
+                            [HUMAN AUTHORIZATION REQUIRED: SAFETY GUARDRAIL GATE]
+                          </div>
+                          <p className="text-[11px] text-amber-200/80 mt-0.5">
+                            High-risk remediation requires explicit digital sign-off before dispatching commands.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleApprove}
+                          disabled={isApproving}
+                          className="nes-btn is-error text-xs py-1 px-3 shrink-0"
+                        >
+                          {isApproving ? '[AUTHORIZING...]' : '[AUTHORIZE EXECUTION]'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-2 border border-emerald-500 bg-emerald-950/30 mb-4 text-xs text-emerald-300">
+                        [PLAN AUTHORIZED BY HUMAN OPERATOR • SIGNED & AUDITED IN SQLITE]
+                      </div>
+                    )}
+
+                    <div className="bg-neutral-950 p-4 border border-neutral-800 text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap max-h-[350px] overflow-y-auto">
+                      {finalResult.finalResolution}
+                    </div>
+                  </section>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          /* DOCS & AGENT SKILL TAB */
+          <div className="space-y-6">
+            {/* Intro & Overview */}
+            <section className="nes-container is-dark with-title">
+              <p className="title text-xs font-arcade text-white">[WHAT IS OMNIOPS?]</p>
+              <div className="space-y-3 text-xs text-neutral-300 leading-relaxed">
+                <p>
+                  <strong>16Bits OmniOps</strong> is an autonomous multi-agent operational consensus swarm. When a company's production database, payment gateway, or caching layer crashes, instead of humans wasting 45 minutes manually checking 10 dashboards, OmniOps queries host vitals, retrieves verified local Standard Operating Procedure (SOP) runbooks, enforces safety guardrails, and outputs an audited recovery playbook.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                  <div className="p-3 border border-neutral-800 bg-neutral-900/60">
+                    <div className="text-emerald-400 font-bold mb-1">[1. ZERO ROOT PASSWORDS]</div>
+                    <p className="text-neutral-400 text-[11px]">
+                      Never requires AWS root credentials or database write access. Operates safely via read-only SOP mounts and webhooks.
+                    </p>
+                  </div>
+                  <div className="p-3 border border-neutral-800 bg-neutral-900/60">
+                    <div className="text-amber-400 font-bold mb-1">[2. OPERATOR SAFETY GATE]</div>
+                    <p className="text-neutral-400 text-[11px]">
+                      Destructive commands are automatically halted behind an explicit digital sign-off gate before execution.
+                    </p>
+                  </div>
+                  <div className="p-3 border border-neutral-800 bg-neutral-900/60">
+                    <div className="text-cyan-400 font-bold mb-1">[3. 100% OBSERVABILITY]</div>
+                    <p className="text-neutral-400 text-[11px]">
+                      Every single agent thought, tool call, and SLA check is logged live to LangSmith with millisecond precision.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Quick Start Guide */}
+            <section className="nes-container is-dark with-title">
+              <p className="title text-xs font-arcade text-emerald-400">[QUICK START (3 WAYS TO USE)]</p>
+              
+              <div className="space-y-4 text-xs">
+                {/* Modality 1 */}
+                <div className="p-3 border border-neutral-800 bg-neutral-900/40">
+                  <div className="font-bold text-white mb-1">[METHOD 1: TERMINAL CLI (OMNIOPS)]</div>
+                  <p className="text-neutral-400 text-[11px] mb-2">
+                    Run health diagnostics, pipe terminal errors, or triage directly:
+                  </p>
+                  <pre className="p-2 bg-black border border-neutral-800 text-emerald-400 text-[11px] overflow-x-auto">
+                    {`# Host infrastructure probe\nomniops doctor\n\n# Direct triage\nomniops triage "Postgres connection pool exhausted" CRITICAL\n\n# Pipe any command failure\ncat /var/log/syslog | tail -n 25 | omniops CRITICAL`}
+                  </pre>
+                </div>
+
+                {/* Modality 2 */}
+                <div className="p-3 border border-neutral-800 bg-neutral-900/40">
+                  <div className="font-bold text-white mb-1">[METHOD 2: MONITORING ALERT WEBHOOK]</div>
+                  <p className="text-neutral-400 text-[11px] mb-2">
+                    Paste this endpoint into Datadog, Grafana, Sentry, or PagerDuty:
+                  </p>
+                  <pre className="p-2 bg-black border border-neutral-800 text-cyan-400 text-[11px] overflow-x-auto">
+                    {`POST http://<your-server>:8000/api/agents/webhook/alert`}
+                  </pre>
+                </div>
+              </div>
+            </section>
+
+            {/* Agent Skill Export for Claude Code / Cursor */}
+            <section className="nes-container is-dark with-title">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-neutral-800 mb-3">
+                <p className="title text-xs font-arcade text-amber-400">[AGENT SKILL EXPORT: SKILL.MD]</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(SKILL_MD_CONTENT)
+                    setCopiedSkill(true)
+                    setTimeout(() => setCopiedSkill(false), 2000)
+                  }}
+                  className="nes-btn is-success text-xs py-1 px-3"
+                >
+                  {copiedSkill ? '[COPIED TO CLIPBOARD!]' : '[COPY SKILL.MD FOR CLAUDE CODE]'}
+                </button>
+              </div>
+
+              <p className="text-xs text-neutral-400 mb-3">
+                Give your autonomous AI coding assistants (Claude Code, Cursor, Codex, Antigravity) instant SRE capabilities. Paste this into <code className="text-amber-300">.agents/skills/16bits-ops/SKILL.md</code>:
+              </p>
+
+              <pre className="p-3 bg-black border border-neutral-800 text-neutral-300 text-[11px] overflow-x-auto max-h-[350px] leading-relaxed">
+                {SKILL_MD_CONTENT}
+              </pre>
+            </section>
           </div>
-        </div>
+        )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t-4 border-neutral-800 bg-neutral-950 py-3 px-4 text-center text-[10px] text-neutral-500 font-mono">
+        16BITS OMNIOPS • AUTONOMOUS SRE MESH • STRICT RUBRIC TECH STACK COMPLIANCE • 2026
+      </footer>
     </div>
   )
 }

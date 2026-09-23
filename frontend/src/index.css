@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "nes.css/css/nes.min.css";
 
 @layer base {
   body {

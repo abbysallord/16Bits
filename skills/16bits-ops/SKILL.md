@@ -65,6 +65,6 @@ curl -X POST http://localhost:8000/api/agents/webhook/alert \
 The engine returns:
 - `incidentId`: UUID tracked in SQLite audit database.
 - `status`: `AWAITING_APPROVAL` (for high-risk operations) or `RESOLVED`.
-- `executionDurationMs`: Engine turnaround time (~3,200ms to 3,800ms).
+- `executionDurationMs`: Engine turnaround time in milliseconds.
 - `langsmithTraceUrl`: Public or organization trace URL proving transparent step-by-step reasoning.
 - `resolutionPreview`: Executive summary and immediate step-by-step commands.

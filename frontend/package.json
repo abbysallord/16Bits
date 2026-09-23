@@ -12,6 +12,7 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^1.47.0",
+    "nes.css": "^2.2.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.7.0"
