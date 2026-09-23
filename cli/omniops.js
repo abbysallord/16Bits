@@ -119,6 +119,52 @@ async function runDoctor() {
   }
 }
 
+function renderTerminalMarkdown(md) {
+  const lines = md.split('\n')
+  const out = []
+  let inCode = false
+  for (let l of lines) {
+    if (l.trim().startsWith('```')) {
+      inCode = !inCode
+      out.push(inCode ? `  ${c.dim}┌── [command] ${'─'.repeat(44)}${c.reset}` : `  ${c.dim}└${'─'.repeat(56)}${c.reset}`)
+      continue
+    }
+    if (inCode) {
+      out.push(`  ${c.green}${c.bold}  $ ${l}${c.reset}`)
+      continue
+    }
+    if (l.startsWith('# ')) {
+      const t = l.replace(/^#\s*/, '').replace(/\*\*/g, '').trim()
+      out.push(`\n${c.cyan}${c.bold}▶ ${t.toUpperCase()}${c.reset}`)
+      out.push(`${c.dim}${'─'.repeat(Math.min(t.length + 2, 60))}${c.reset}`)
+      continue
+    }
+    if (l.startsWith('## ')) {
+      const t = l.replace(/^##\s*/, '').replace(/\*\*/g, '').trim()
+      out.push(`\n${c.yellow}${c.bold}◆ ${t}${c.reset}`)
+      continue
+    }
+    if (l.startsWith('### ')) {
+      const t = l.replace(/^###\s*/, '').replace(/\*\*/g, '').trim()
+      out.push(`\n${c.bold}${t}${c.reset}`)
+      continue
+    }
+    l = l.replace(/\*\*(.*?)\*\*/g, `${c.bold}$1${c.reset}`)
+    l = l.replace(/`([^`]+)`/g, `${c.cyan}$1${c.reset}`)
+    const nMatch = l.trim().match(/^(\d+)\.\s*(.*)/)
+    if (nMatch) {
+      out.push(`  ${c.yellow}${c.bold}${nMatch[1]}.${c.reset} ${nMatch[2]}`)
+      continue
+    }
+    if (l.trim().startsWith('* ') || l.trim().startsWith('- ')) {
+      out.push(`  ${c.cyan}•${c.reset} ${l.trim().replace(/^[\*\-]\s*/, '')}`)
+      continue
+    }
+    out.push(l)
+  }
+  return out.join('\n')
+}
+
 async function triageIncident(query, priority = 'HIGH') {
   printBanner()
   console.log(`${c.bold}Initiating 4-Agent Swarm Triage...${c.reset}`)
@@ -147,30 +193,42 @@ async function triageIncident(query, priority = 'HIGH') {
     const { result } = await res.json()
     const elapsed = Date.now() - startTime
 
-    // Display execution logs
-    console.log(`${c.bold}${c.cyan}=== Autonomous Execution Trajectory ===${c.reset}`)
+    // 1. Display Clean 4-Agent Trajectory Card
+    console.log(`\n${c.cyan}${c.bold}┌── 🤖 4-Agent Autonomous Swarm Trajectory ──────────────────────────────┐${c.reset}`)
     result.logs.forEach((log) => {
-      console.log(`\n${c.bold}${c.green}[Step ${log.stepNumber}] ${log.agentName}${c.reset}`)
-      console.log(`  ${c.yellow}Action:${c.reset} ${log.action}`)
-      console.log(`  ${c.dim}Analysis:${c.reset} ${log.thought}`)
+      const stepBadge = `Step ${log.stepNumber}: ${log.agentName}`
+      const statusIcon = log.agentName.includes('Verification') && result.status === 'AWAITING_APPROVAL'
+        ? `${c.yellow}🛑${c.reset}`
+        : `${c.green}✔${c.reset}`
+      console.log(`${c.cyan}│${c.reset}  ${statusIcon} ${c.bold}${stepBadge.padEnd(28)}${c.reset} ${c.dim}• ${log.action.slice(0, 40)}...${c.reset}`)
+
+      if (log.stepNumber === 2 && result.matchedRunbookTitle) {
+        console.log(`${c.cyan}│${c.reset}     ${c.dim}└─ SOP Runbook: "${result.matchedRunbookTitle}"${c.reset}`)
+      }
+      if (log.stepNumber === 3) {
+        const ruling = result.status === 'AWAITING_APPROVAL' ? 'OPERATOR AUTHORIZATION REQUIRED' : 'VERIFIED SAFE'
+        console.log(`${c.cyan}│${c.reset}     ${c.dim}└─ Safety Guardrail: [${ruling}]${c.reset}`)
+      }
     })
+    console.log(`${c.cyan}└───${'─'.repeat(68)}┘${c.reset}\n`)
 
-    console.log(`\n${c.bold}${c.cyan}=== Synthesized Remediation Plan ===${c.reset}\n`)
-    console.log(result.finalResolution)
+    // 2. Render Formatted Remediation Playbook
+    console.log(`${c.bold}${c.green}=== 📋 Synthesized Remediation Plan ===${c.reset}`)
+    console.log(renderTerminalMarkdown(result.finalResolution))
 
-    console.log(`\n${c.dim}────────────────────────────────────────────────────────${c.reset}`)
-    console.log(`${c.green}${c.bold}Execution Time:${c.reset}  ${elapsed}ms (Swarm Engine: ${result.executionDurationMs}ms)`)
-    console.log(`${c.cyan}${c.bold}Incident ID:${c.reset}     ${result.incidentId}`)
-    console.log(`${c.magenta}${c.bold}Security Gate:${c.reset}   ${result.status}`)
+    // 3. Execution Summary Box
+    console.log(`\n${c.dim}────────────────────────────────────────────────────────────────────────${c.reset}`)
+    console.log(`${c.bold}Status:${c.reset}          ${result.status === 'AWAITING_APPROVAL' ? c.bgYellow + ' 🛑 AWAITING OPERATOR APPROVAL ' + c.reset : c.bgGreen + ' ✔ RESOLVED ' + c.reset}`)
+    console.log(`${c.bold}Execution Time:${c.reset}  ${result.executionDurationMs}ms (Swarm Turnaround)`)
+    console.log(`${c.bold}Incident ID:${c.reset}     ${c.cyan}${result.incidentId}${c.reset}`)
 
     if (result.langsmithTraceUrl) {
-      console.log(`${c.cyan}${c.bold}LangSmith Trace:${c.reset} ${result.langsmithTraceUrl}`)
+      console.log(`${c.bold}LangSmith Trace:${c.reset} ${c.cyan}${result.langsmithTraceUrl}${c.reset}`)
     }
 
     if (result.status === 'AWAITING_APPROVAL') {
-      console.log(`\n${c.bgYellow} 🛑 SLA GUARDRAIL: OPERATOR AUTHORIZATION REQUIRED ${c.reset}`)
-      console.log(`${c.yellow}To authorize this plan, run:${c.reset}`)
-      console.log(`  ${c.bold}omniops approve ${result.incidentId}${c.reset}\n`)
+      console.log(`\n${c.yellow}${c.bold}👉 To authorize and sign off this execution:${c.reset}`)
+      console.log(`   ${c.bold}omniops approve ${result.incidentId}${c.reset}\n`)
     } else {
       console.log(`\n${c.bgGreen} ✔ REMEDIATION COMPLETED & COMMITTED TO SQLITE ${c.reset}\n`)
     }
