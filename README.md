@@ -1,43 +1,64 @@
-# 16Bits - Hackathon Master Monorepo 🚀
+# 16Bits OmniOps ⚡
+> **Autonomous Multi-Agent Enterprise Workflow & Incident Orchestrator**
 
-A high-velocity, production-grade starter scaffold engineered for 8-24 hour competitive hackathons.
-
-## Architecture
-
-- **`frontend/`**: Vite + React 18/19 (TypeScript) + Tailwind CSS + Lucide Icons + Neobrutalism/Retro styling hooks + Pre-wired API client.
-- **`backend/`**: FastAPI (Python 3.10+) + Groq LLM client (`llama-3.3-70b-versatile`) + CORS middleware + Streaming SSE + Structured Pydantic validation.
-- **`presentation/`**: Slidev developer pitch deck with pre-structured judging presentation (`slides.md`).
+An autonomous, multi-agent operational intelligence platform built for the **Agentic AI & Intelligent Systems** challenge.
 
 ---
 
-## Quickstart Guide
+## 1. Problem Statement
+Modern enterprises lose thousands of hours and suffer costly SLA breaches due to fragmented tools, disconnected databases, and manual human triage. When critical incidents or cross-department workflows occur, human operators must manually pull logs from different monitoring platforms, verify compliance with complex contractual SLAs, and coordinate action items across multiple teams.
 
-### 1. Backend Setup
+## 2. Solution: The 4-Agent Autonomous Consensus Swarm
+Instead of a single brittle prompt, **16Bits OmniOps** deploys a specialized 4-agent swarm:
+1. **Planner Agent**: Decomposes messy operational requests into an execution DAG and investigation requirements.
+2. **Investigator Agent**: Gathers telemetry data, customer tier profiles, and SLA targets via tool calling.
+3. **Verification Agent (Guardrail Gate)**: Inspects the investigation findings against enterprise security and SLA constraints before actions are executed (preventing hallucinations and unauthorized operations).
+4. **Synthesizer & Dispatcher Agent**: Produces the final executive incident summary, numbered remediation playbook, automated stakeholder communication drafts, and post-mortem preventive measures.
+
+---
+
+## 3. Tech Stack Compliance
+
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend** | React 19, Vite, Tailwind CSS v4, Lucide Icons, Server-Sent Events (SSE) |
+| **Backend** | Node.js, Express.js, TypeScript/ESM |
+| **Authentication & Security** | JWT (JSON Web Tokens), bcryptjs password hashing, Zod runtime validation |
+| **Database** | SQLite (`better-sqlite3`), WAL journal mode, relational audit tables |
+| **Artificial Intelligence** | Google Gemini API (`@google/generative-ai`) + Groq LPU high-speed inference |
+| **Presentation Deck** | Slidev developer pitch deck (`presentation/slides.md`) |
+
+---
+
+## 4. Quickstart Guide
+
+### Backend Setup (Express.js + SQLite)
 ```bash
 cd backend
-# Create virtual environment
-uv venv .venv
-source .venv/bin/activate
-# Install dependencies
-uv pip install -r requirements.txt
-# Copy environment configuration
-cp .env.example .env
-# Start the FastAPI server (Hot-reload enabled on port 8000)
-uvicorn app.main:app --reload --port 8000
-```
-Backend will be live at `http://localhost:8000` with interactive API docs at `http://localhost:8000/docs`.
+# 1. Install dependencies
+npm install
 
-### 2. Frontend Setup
+# 2. Configure environment
+cp .env.example .env
+# Add GEMINI_API_KEY or GROQ_API_KEY in .env
+
+# 3. Start development server (Port 8000)
+npm run dev
+```
+Backend will be live at `http://localhost:8000`.
+
+### Frontend Setup (Vite + React)
 ```bash
 cd frontend
-# Install dependencies
+# 1. Install dependencies
 npm install
-# Start Vite development server (port 5173)
+
+# 2. Start development server (Port 5173)
 npm run dev
 ```
 Frontend will be live at `http://localhost:5173`.
 
-### 3. Presentation Pitch Deck
+### Pitch Deck Setup (Slidev)
 ```bash
 cd presentation
 npm install
@@ -47,7 +68,12 @@ Slides will be live at `http://localhost:3030`.
 
 ---
 
-## Hackathon Team Roster & Roles
-- **Teammate 1 (Lead Developer / Dhanush)**: Core Architecture, Agentic AI pipeline, Backend API, and Frontend Integration.
-- **Teammate 2 (Full-Stack / UI Specialist)**: User flows, component design, responsive styling, and feature expansion.
-- **Teammate 3 (Pitch / Product Lead)**: Slidev pitch presentation, user story definition, demo rehearsal, and value proposition.
+## 5. API Endpoints
+
+- `GET /api/health` — System status, SQLite connectivity, and AI provider health.
+- `POST /api/auth/register` — Register a new operator (Zod validated, bcrypt hashed).
+- `POST /api/auth/login` — Login and receive signed JWT token.
+- `GET /api/incidents` — List all enterprise incidents and resolution statuses.
+- `GET /api/incidents/:id` — Get specific incident with full 4-agent audit trail.
+- `POST /api/agents/execute` — Synchronous 4-agent swarm run.
+- `POST /api/agents/stream` — Real-time Server-Sent Events (SSE) streaming swarm execution.

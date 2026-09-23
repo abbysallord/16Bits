@@ -23,6 +23,11 @@ build/
 .env.*
 !.env.example
 
+# SQLite Databases
+*.sqlite
+*.sqlite-*
+data/
+
 # Editor & OS files
 .vscode/
 .idea/
