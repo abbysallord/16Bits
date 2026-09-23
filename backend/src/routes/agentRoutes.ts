@@ -15,6 +15,21 @@ agentRouter.get('/runbooks', (req: Request, res: Response): void => {
   res.json({ count: runbooks.length, runbooks })
 })
 
+// Upload a custom team runbook (Markdown SOP)
+agentRouter.post('/runbooks', (req: Request, res: Response): void => {
+  const { filename, content } = req.body
+  if (!filename || !content) {
+    res.status(400).json({ error: 'filename and content are required' })
+    return
+  }
+  try {
+    const saved = runbookService.saveRunbook(filename, content)
+    res.status(201).json({ message: 'Runbook uploaded and indexed successfully', runbook: saved })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to save runbook' })
+  }
+})
+
 // Real Ingestion Webhook for External Alerts / curl testing
 // If WEBHOOK_SECRET is set, callers must send it in the x-webhook-secret header
 agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<void> => {
