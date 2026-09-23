@@ -323,12 +323,66 @@ function ConsoleView() {
           <span style={{ color: '#209cee' }}>ZERO MANUAL</span>{' '}
           <span style={{ color: '#92cc41' }}>COORDINATION.</span>
         </h1>
-        <p className="mt-4 text-neutral-700" style={{ fontSize: 14, maxWidth: 640 }}>
-          A business is drowning in repetitive decision-making, fragmented workflows, and manual
-          coordination across systems. OmniOps dispatches a{' '}
-          <strong>4-agent autonomous swarm</strong> that plans, investigates, verifies, and
-          resolves production incidents in seconds — with a human approval gate for high-stakes actions.
+        <p
+          className="mt-4 text-neutral-800 leading-relaxed font-sans"
+          style={{
+            fontFamily: "'Space Grotesk', system-ui, -apple-system, sans-serif",
+            fontSize: 'clamp(15px, 1.8vw, 17px)',
+            maxWidth: 680,
+            lineHeight: 1.6,
+          }}
+        >
+          Autonomous incident triage and remediation swarm for mission-critical infrastructure.
+          Four collaborative agents investigate root causes, query telemetry, and deploy
+          verified fixes in under 3 seconds — protected by cryptographic human approval gates.
         </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span
+            className="font-code text-xs px-2.5 py-1"
+            style={{
+              border: '2px solid #212529',
+              backgroundColor: '#e6f9d8',
+              color: '#212529',
+              fontWeight: 700,
+            }}
+          >
+            [ 2.4s MTTR ]
+          </span>
+          <span
+            className="font-code text-xs px-2.5 py-1"
+            style={{
+              border: '2px solid #212529',
+              backgroundColor: '#fef3c7',
+              color: '#212529',
+              fontWeight: 700,
+            }}
+          >
+            [ HUMAN APPROVAL GATE ]
+          </span>
+          <span
+            className="font-code text-xs px-2.5 py-1"
+            style={{
+              border: '2px solid #212529',
+              backgroundColor: '#dbeafe',
+              color: '#212529',
+              fontWeight: 700,
+            }}
+          >
+            [ AST CALL GRAPH RAG ]
+          </span>
+          <span
+            className="font-code text-xs px-2.5 py-1"
+            style={{
+              border: '2px solid #212529',
+              backgroundColor: '#f3e8ff',
+              color: '#212529',
+              fontWeight: 700,
+            }}
+          >
+            [ LANGSMITH TRACED ]
+          </span>
+        </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a href="#pipeline" className="nes-btn is-success font-arcade nes-btn-sm">
