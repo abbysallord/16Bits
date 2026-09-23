@@ -25,6 +25,8 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: CORS_ORIGINS
+        value: https://16bits-omniops.vercel.app,http://localhost:5173
       - key: LANGSMITH_API_KEY
         sync: false
       - key: LANGSMITH_PROJECT

@@ -58,6 +58,20 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl()
 
+// Thrown when a protected endpoint rejects the session (missing/expired token)
+export class UnauthorizedError extends Error {
+  constructor(message = 'Please sign in as an operator') {
+    super(message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+async function throwApiError(res: Response, fallback: string): Promise<never> {
+  const err = await res.json().catch(() => ({}))
+  if (res.status === 401) throw new UnauthorizedError(err.error)
+  throw new Error(err.error || fallback)
+}
+
 export async function checkBackendHealth(): Promise<HealthStatus> {
   const res = await fetch(`${API_BASE_URL}/api/health`)
   if (!res.ok) throw new Error('Backend health check failed')
@@ -176,16 +190,14 @@ export async function streamSwarm(
   }
 }
 
-export async function approveIncident(incidentId: string, approvedBy: string = 'Lead Operator'): Promise<void> {
+export async function approveIncident(incidentId: string, token: string): Promise<{ authorizedBy: string }> {
   const res = await fetch(`${API_BASE_URL}/api/agents/approve`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ incidentId, approvedBy })
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ incidentId })
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Failed to approve incident')
-  }
+  if (!res.ok) await throwApiError(res, 'Failed to approve incident')
+  return res.json()
 }
 
 export async function fetchRunbooks(): Promise<Array<{ filename: string; title: string; content: string }>> {
@@ -199,16 +211,13 @@ export async function fetchRunbooks(): Promise<Array<{ filename: string; title: 
   }
 }
 
-export async function uploadRunbook(filename: string, content: string): Promise<{ success: boolean; message: string }> {
+export async function uploadRunbook(filename: string, content: string, token: string): Promise<{ success: boolean; message: string }> {
   const res = await fetch(`${API_BASE_URL}/api/agents/runbooks`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ filename, content })
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Failed to upload runbook')
-  }
+  if (!res.ok) await throwApiError(res, 'Failed to upload runbook')
   return res.json()
 }
 

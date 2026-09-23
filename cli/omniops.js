@@ -55,7 +55,7 @@ function printBanner() {
   const engineLabel = isCloud ? 'Production Cloud' : 'Localhost Dev'
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════════════╗
-║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.2) ║
+║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.3) ║
 ║  ${c.dim}// 4-AGENT SWARM · AST CODE KNOWLEDGE · LANGSMITH TRACED //${c.cyan} ║
 ╚══════════════════════════════════════════════════════════════╝${c.reset}
   ${c.dim}Engine Link:${c.reset} [${isCloud ? c.green + engineLabel : c.yellow + engineLabel}${c.reset}] -> ${c.cyan}${API_BASE}${c.reset}
@@ -283,15 +283,32 @@ async function triageIncident(query, priority = 'HIGH') {
   }
 }
 
+// Operator sign-in for protected actions (approve). Uses OMNIOPS_TOKEN if set, otherwise logs in
+// with OMNIOPS_EMAIL / OMNIOPS_PASSWORD (defaults to the public demo operator account).
+async function getAuthToken() {
+  if (process.env.OMNIOPS_TOKEN) return process.env.OMNIOPS_TOKEN
+  const email = process.env.OMNIOPS_EMAIL || 'admin@16bits.io'
+  const password = process.env.OMNIOPS_PASSWORD || 'admin123'
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(`Operator sign-in failed for ${email}: ${err.error || `HTTP ${res.status}`}. Set OMNIOPS_TOKEN or OMNIOPS_EMAIL/OMNIOPS_PASSWORD.`)
+  }
+  const data = await res.json()
+  return data.token
+}
+
 async function approveIncident(incidentId) {
   try {
+    const token = await getAuthToken()
     const res = await fetch(`${API_BASE}/api/agents/approve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        incidentId,
-        approvedBy: process.env.USER || 'CLI Operator'
-      })
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ incidentId })
     })
 
     if (!res.ok) {
@@ -303,6 +320,7 @@ async function approveIncident(incidentId) {
     console.log(`\n${c.green}${c.bold}[OK] Incident Authorized & Resolved!${c.reset}`)
     console.log(`${c.dim}Incident ID:${c.reset} ${data.incident.id}`)
     console.log(`${c.dim}Updated Status:${c.reset} ${data.incident.status}`)
+    if (data.authorizedBy) console.log(`${c.dim}Authorized By:${c.reset} ${data.authorizedBy}`)
     console.log(`${c.dim}Title:${c.reset} ${data.incident.title}\n`)
   } catch (err) {
     console.error(`\n${c.red}[FAIL] Approval failed:${c.reset}`, err.message)

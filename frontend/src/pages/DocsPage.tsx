@@ -9,7 +9,9 @@ import {
 import {
   fetchRunbooks,
   uploadRunbook,
+  UnauthorizedError,
 } from '../services/api'
+import { useAuth, AuthBadge } from '../auth'
 
 export default function DocsPage() {
   const [runbooks, setRunbooks] = useState<Array<{ filename: string; title: string; content: string }>>([])
@@ -43,6 +45,7 @@ requires_approval: true
   )
   const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const { ensureToken, logout } = useAuth()
 
   useEffect(() => {
     loadRunbooks()
@@ -65,10 +68,17 @@ requires_approval: true
     setIsUploading(true)
     setUploadStatus(null)
     try {
-      const res = await uploadRunbook(uploadFilename, uploadContent)
+      // Runbook uploads require a signed-in operator; opens the sign-in dialog if needed
+      const token = await ensureToken()
+      if (!token) {
+        setUploadStatus('[CANCELLED] Sign in as an operator to upload runbooks')
+        return
+      }
+      const res = await uploadRunbook(uploadFilename, uploadContent, token)
       setUploadStatus(`[SUCCESS] ${res.message}`)
       loadRunbooks()
     } catch (err: any) {
+      if (err instanceof UnauthorizedError) logout()
       setUploadStatus(`[ERROR] ${err.message}`)
     } finally {
       setIsUploading(false)
@@ -181,6 +191,7 @@ npx omniops listen --port 8000
             >
               NPM: omniops@1.0.2
             </a>
+            <AuthBadge />
           </div>
         </div>
       </header>
@@ -453,7 +464,8 @@ npx omniops listen --port 8000
                   <div className="font-bold text-neutral-900">cat /var/log/nginx/error.log | omniops</div>
                   
                   <div className="text-neutral-500 mt-3 mb-1"># Sign off and approve remediation for an incident</div>
-                  <div className="font-bold text-neutral-900">omniops approve inc-1741234567890 --user "Lead SRE"</div>
+                  <div className="font-bold text-neutral-900">omniops approve inc-1741234567890</div>
+                  <div className="text-neutral-500 mt-1 mb-1"># Signs in as the demo operator by default; set OMNIOPS_TOKEN or OMNIOPS_EMAIL / OMNIOPS_PASSWORD for your own account (CLI v1.0.3+)</div>
                   
                   <div className="text-neutral-500 mt-3 mb-1"># Start continuous alert ingestion daemon</div>
                   <div className="font-bold text-neutral-900">omniops listen --port 8000</div>
@@ -691,7 +703,7 @@ npx omniops listen --port 8000
                   <tr>
                     <td className="font-bold text-yellow-700 font-mono">POST</td>
                     <td className="font-mono text-xs">/api/agents/approve</td>
-                    <td>Cryptographic operator sign-off on awaiting actions</td>
+                    <td>Operator sign-off on awaiting actions (requires <code>Authorization: Bearer &lt;JWT&gt;</code> from /api/auth/login)</td>
                   </tr>
                   <tr>
                     <td className="font-bold text-blue-700 font-mono">GET</td>

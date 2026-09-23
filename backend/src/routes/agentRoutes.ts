@@ -5,7 +5,7 @@ import { swarmService } from '../services/swarmService.js'
 import { runbookService } from '../services/runbookService.js'
 import { runAgentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
-import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js'
+import { AuthenticatedRequest, requireAuth, verifyToken } from '../middleware/auth.js'
 
 export const agentRouter = Router()
 
@@ -15,8 +15,8 @@ agentRouter.get('/runbooks', (req: Request, res: Response): void => {
   res.json({ count: runbooks.length, runbooks })
 })
 
-// Upload a custom team runbook (Markdown SOP)
-agentRouter.post('/runbooks', (req: Request, res: Response): void => {
+// Upload a custom team runbook (Markdown SOP). Signed-in operators only.
+agentRouter.post('/runbooks', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
   const { filename, content } = req.body
   if (!filename || !content) {
     res.status(400).json({ error: 'filename and content are required' })
@@ -75,7 +75,8 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
 })
 
 // Human-in-the-Loop Operator Authorization
-agentRouter.post('/approve', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Human approval gate. Signed-in operators only; the approver comes from the verified JWT.
+agentRouter.post('/approve', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { incidentId } = req.body
   if (!incidentId || typeof incidentId !== 'string') {
     res.status(400).json({ error: 'incidentId is required' })
@@ -92,18 +93,7 @@ agentRouter.post('/approve', async (req: AuthenticatedRequest, res: Response): P
     return
   }
 
-  // Prefer the verified JWT identity. The current single-page UI has no login, so fall back to
-  // the body value but label it unverified so the audit trail stays honest.
-  let approvedBy = `${String(req.body.approvedBy || 'Operator').slice(0, 80)} [unverified]`
-  const authHeader = req.headers.authorization
-  if (authHeader?.startsWith('Bearer ')) {
-    const user = verifyToken(authHeader.split(' ')[1])
-    if (!user) {
-      res.status(401).json({ error: 'Invalid or expired token' })
-      return
-    }
-    approvedBy = `${user.name} (${user.email})`
-  }
+  const approvedBy = `${req.user!.name} (${req.user!.email})`
 
   try {
     swarmService.approveIncident(incidentId, approvedBy)

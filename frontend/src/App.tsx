@@ -20,7 +20,9 @@ import {
   fetchIncidents,
   streamSwarm,
   approveIncident,
+  UnauthorizedError,
 } from './services/api'
+import { useAuth, AuthBadge } from './auth'
 import type {
   Incident,
   AgentStepLog,
@@ -125,6 +127,8 @@ function ConsoleView() {
   const [copied, setCopied] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
   const [approvedLocally, setApprovedLocally] = useState(false)
+  const [approvedBy, setApprovedBy] = useState<string | null>(null)
+  const { ensureToken, logout } = useAuth()
 
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -166,6 +170,7 @@ function ConsoleView() {
     setLogs([])
     setFinalResult(null)
     setApprovedLocally(false)
+    setApprovedBy(null)
     setPending((prev) => [
       ...prev.filter((p) => p.title !== title),
       {
@@ -227,7 +232,21 @@ function ConsoleView() {
     setIsApproving(true)
     try {
       if (health?.status === 'ok') {
-        await approveIncident(finalResult.incidentId, 'Lead Operator')
+        // Approval is signed with the operator's JWT; opens the sign-in dialog if needed
+        let token = await ensureToken()
+        if (!token) return
+        try {
+          const res = await approveIncident(finalResult.incidentId, token)
+          setApprovedBy(res.authorizedBy)
+        } catch (err) {
+          if (!(err instanceof UnauthorizedError)) throw err
+          // Session expired or server secret rotated: sign in again and retry once
+          logout()
+          token = await ensureToken()
+          if (!token) return
+          const res = await approveIncident(finalResult.incidentId, token)
+          setApprovedBy(res.authorizedBy)
+        }
       }
       setApprovedLocally(true)
     } catch (err: any) {
@@ -309,6 +328,7 @@ function ConsoleView() {
             >
               NPM: omniops@1.0.2
             </a>
+            <AuthBadge />
           </div>
         </div>
       </header>
@@ -693,7 +713,9 @@ function ConsoleView() {
                           style={{ border: '2px solid #92cc41', backgroundColor: '#e6f9d8', fontSize: 10 }}
                         >
                           <CircleDot size={10} className="inline mr-1" style={{ color: '#92cc41' }} />
-                          Remediation authorized by human operator · committed to audit trail
+                          {approvedBy
+                            ? `Remediation authorized by ${approvedBy} · committed to audit trail`
+                            : 'Remediation authorized by human operator · committed to audit trail'}
                         </div>
                       )}
 

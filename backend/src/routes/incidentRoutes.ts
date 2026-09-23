@@ -44,7 +44,7 @@ incidentRouter.get('/:id', (req: Request, res: Response): void => {
 })
 
 // Create incident
-incidentRouter.post('/', validate(createIncidentSchema), (req: AuthenticatedRequest, res: Response): void => {
+incidentRouter.post('/', requireAuth, validate(createIncidentSchema), (req: AuthenticatedRequest, res: Response): void => {
   const { title, description, priority, category } = req.body
   const id = crypto.randomUUID()
   const userId = req.user?.id || null

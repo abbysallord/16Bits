@@ -13,9 +13,25 @@ const app = express()
 const PORT = process.env.PORT || 8000
 
 // Middleware
+// CORS allowlist. Override with CORS_ORIGINS (comma-separated). Requests without an Origin
+// header (curl, CLI, server-to-server, health checks) are not affected by CORS.
+const DEFAULT_CORS_ORIGINS = [
+  'https://16bits-omniops.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+]
+const allowedOrigins = (process.env.CORS_ORIGINS || DEFAULT_CORS_ORIGINS.join(','))
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean)
+
 app.use(cors({
-  origin: '*', // Open for rapid hackathon client prototyping
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
+    return callback(null, false)
+  },
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-webhook-secret'],
 }))
 app.use(express.json())
 

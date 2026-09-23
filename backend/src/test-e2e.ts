@@ -207,6 +207,38 @@ async function runTests() {
     recordTest('9. External Webhook Alert Ingestion', false, err.message)
   }
 
+  // TEST 10a: Approval gate rejects unauthenticated callers (no token -> 401, incident unchanged)
+  if (syncIncidentId) {
+    try {
+      const { status, data } = await request('/api/agents/approve', {
+        method: 'POST',
+        body: { incidentId: syncIncidentId, approvedBy: 'Spoofed Operator' }
+      })
+      recordTest(
+        '10a. Approval Gate Rejects Missing Token (/api/agents/approve)',
+        status === 401,
+        `Status: ${status}, Error: ${data.error}`
+      )
+    } catch (err: any) {
+      recordTest('10a. Approval Gate Rejects Missing Token', false, err.message)
+    }
+  }
+
+  // TEST 10b: Runbook upload rejects unauthenticated callers
+  try {
+    const { status, data } = await request('/api/agents/runbooks', {
+      method: 'POST',
+      body: { filename: 'e2e-unauth.md', content: '# should not be saved' }
+    })
+    recordTest(
+      '10b. Runbook Upload Rejects Missing Token (POST /api/agents/runbooks)',
+      status === 401,
+      `Status: ${status}, Error: ${data.error}`
+    )
+  } catch (err: any) {
+    recordTest('10b. Runbook Upload Rejects Missing Token', false, err.message)
+  }
+
   // TEST 10: Human-in-the-Loop Operator Authorization with JWT Signature
   if (syncIncidentId && authToken) {
     try {
