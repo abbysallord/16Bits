@@ -28,7 +28,7 @@ const c = {
 function printBanner() {
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════╗
-║  ⚡ 16Bits OmniOps — Autonomous Operations Swarm CLI  ║
+║  ⚡ 16Bits OmniOps — Autonomous Operations Swarm CLI ║
 ╚══════════════════════════════════════════════════════╝${c.reset}
 ${c.dim}  Connected to Engine: ${API_BASE}${c.reset}
 `)
