@@ -383,6 +383,10 @@ npx omniops listen --port 8000
                   <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Clear local credentials and sign out</div>
                   <div className="font-bold">omniops logout</div>
 
+                  <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Unrecognized commands (e.g. omniops foobar) are safely guarded against false-positive swarm triage</div>
+                  <div className="font-bold">omniops foobar</div>
+                  <div style={{ color: 'var(--ink-faint)' }}># Returns: [FAIL] Unknown command: "foobar". Prompts with valid subcommands without running the swarm.</div>
+
                   <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Start continuous alert ingestion daemon</div>
                   <div className="font-bold">omniops listen --port 8000</div>
                 </div>
@@ -411,7 +415,7 @@ npx omniops listen --port 8000
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4" style={{ fontSize: 13 }}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4" style={{ fontSize: 13 }}>
                 <div className="p-3" style={{ border: '2px solid var(--border)', backgroundColor: 'var(--bg-inset)' }}>
                   <span className="font-bold block mb-1 text-accent font-display" style={{ fontSize: 11 }}>
                     MACHINE HISTORY &amp; WORKSPACE CLAIMING
@@ -431,6 +435,17 @@ npx omniops listen --port 8000
                   <p className="leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
                     Running <code className="font-code px-1 py-0.5" style={codeBlock}>omniops approve &lt;id&gt;</code> without an existing session will no longer fail with an ambiguous raw token error.
                     Instead, the CLI prompts you with friendly operator sign-in instructions and automatically launches the deep-linked approval portal in your browser so you can sign in and approve in one seamless click.
+                  </p>
+                </div>
+                <div className="p-3" style={{ border: '2px solid var(--border)', backgroundColor: 'var(--bg-inset)' }}>
+                  <span className="font-bold block mb-1 text-accent font-display" style={{ fontSize: 11 }}>
+                    COMMAND SAFETY GUARDRAILS (e.g. omniops foobar)
+                  </span>
+                  <p className="leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+                    To prevent accidental AI resource consumption and phantom incidents, running invalid single words like{' '}
+                    <code className="font-code px-1 py-0.5" style={codeBlock}>omniops foobar</code> or typos like{' '}
+                    <code className="font-code px-1 py-0.5" style={codeBlock}>omniops whaomi</code> will never blindly trigger the multi-agent consensus swarm.
+                    Typos are automatically resolved (e.g., to <code className="font-code px-1 py-0.5" style={codeBlock}>whoami</code>), while unrecognized commands safely exit with command guidance. Real incidents must be dispatched via <code className="font-code px-1 py-0.5" style={codeBlock}>omniops triage "&lt;error&gt;"</code> or descriptive alert strings.
                   </p>
                 </div>
               </div>
