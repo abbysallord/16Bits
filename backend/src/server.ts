@@ -27,7 +27,7 @@ app.get('/api/health', (req, res) => {
     project: '16Bits OmniOps Backend',
     version: '1.0.0',
     database: 'SQLite Active',
-    ai_configured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY),
+    ai_configured: !aiInfo.isMock,
     ai_provider: aiInfo.activeProvider,
     ai_model: aiInfo.model,
     is_mock: aiInfo.isMock
