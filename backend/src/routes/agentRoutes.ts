@@ -42,7 +42,9 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
       incidentId,
       status: result.status,
       executionDurationMs: result.executionDurationMs,
-      resolutionPreview: result.finalResolution.slice(0, 300) + '...'
+      resolutionPreview: result.finalResolution.slice(0, 300) + '...',
+      langsmithTraceId: result.langsmithTraceId,
+      langsmithTraceUrl: result.langsmithTraceUrl
     })
   } catch (err: any) {
     console.error('[Webhook Error]:', err)

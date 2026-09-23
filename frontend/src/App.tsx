@@ -454,27 +454,40 @@ export default function App() {
                     <FileText className="h-4 w-4 text-emerald-400" />
                     <span>Synthesized Resolution & Actionable Plan</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(finalResult.finalResolution)
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 2000)
-                    }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-mono text-neutral-300 transition"
-                  >
-                    {copied ? (
-                      <>
-                        <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
-                        <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5 text-neutral-400" />
-                        <span>Copy Fix</span>
-                      </>
+                  <div className="flex items-center gap-2">
+                    {finalResult.langsmithTraceUrl && (
+                      <a
+                        href={finalResult.langsmithTraceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-xs font-mono text-indigo-300 transition"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 text-indigo-400" />
+                        <span>LangSmith Trace</span>
+                      </a>
                     )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(finalResult.finalResolution)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 2000)
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-mono text-neutral-300 transition"
+                    >
+                      {copied ? (
+                        <>
+                          <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5 text-neutral-400" />
+                          <span>Copy Fix</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Human-in-the-Loop Authorization Gate */}

@@ -44,6 +44,8 @@ export interface SwarmResult {
   logs: AgentStepLog[]
   finalResolution: string
   executionDurationMs: number
+  langsmithTraceId?: string | null
+  langsmithTraceUrl?: string | null
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'

@@ -1,5 +1,6 @@
 import os from 'os'
 import crypto from 'crypto'
+import { RunTree } from 'langsmith'
 import { db } from '../db/database.js'
 import { aiService } from './aiService.js'
 import { runbookService } from './runbookService.js'
@@ -23,6 +24,8 @@ export interface SwarmExecutionResult {
   logs: AgentStepLog[]
   finalResolution: string
   executionDurationMs: number
+  langsmithTraceId?: string | null
+  langsmithTraceUrl?: string | null
 }
 
 // Enterprise SLA Policy Matrix
@@ -51,7 +54,25 @@ export class SwarmService {
     const startTime = Date.now()
     const logs: AgentStepLog[] = []
 
-    const recordStep = (agentName: string, stepNumber: number, thought: string, action: string, dataPayload?: any) => {
+    // 1. Initialize LangSmith Trace Tree for 100% Observability
+    const hasLangSmith = Boolean(process.env.LANGSMITH_API_KEY)
+    let runTree: RunTree | null = null
+
+    if (hasLangSmith) {
+      try {
+        runTree = new RunTree({
+          name: '16Bits OmniOps Consensus Swarm',
+          run_type: 'chain',
+          inputs: { incidentId, title, description, priority, category },
+          project_name: process.env.LANGSMITH_PROJECT || '16bits-omniops'
+        })
+        await runTree.postRun()
+      } catch (err: any) {
+        console.warn(`[LangSmith] RunTree init notice: ${err.message}`)
+      }
+    }
+
+    const recordStep = async (agentName: string, stepNumber: number, thought: string, action: string, dataPayload?: any) => {
       const step: AgentStepLog = {
         agentName,
         stepNumber,
@@ -76,6 +97,21 @@ export class SwarmService {
         action,
         dataPayload ? JSON.stringify(dataPayload) : null
       )
+
+      // Post child span to LangSmith
+      if (runTree) {
+        try {
+          const childSpan = await runTree.createChild({
+            name: `${stepNumber}. ${agentName}`,
+            run_type: stepNumber === 2 ? 'tool' : 'llm',
+            inputs: { action, dataPayload }
+          })
+          await childSpan.end({ outputs: { thought, action } })
+          await childSpan.postRun()
+        } catch {
+          // ignore trace post errors
+        }
+      }
 
       if (onProgress) {
         onProgress(step)
@@ -104,7 +140,7 @@ Decompose this incident into a concrete 3-stage tactical resolution plan:
 Be concise, technical, and objective. Maximum 140 words.
 `
     const planThought = await aiService.complete(planPrompt, "You are an expert enterprise operations planning coordinator.")
-    recordStep(
+    await recordStep(
       'Planner Agent',
       1,
       planThought,
@@ -114,7 +150,6 @@ Be concise, technical, and objective. Maximum 140 words.
     // ==========================================
     // AGENT 2: INVESTIGATOR & TOOL AGENT
     // ==========================================
-    // 1. Fetch real hardware & host telemetry
     const hostTelemetry = {
       platform: os.platform(),
       hostname: os.hostname(),
@@ -125,7 +160,6 @@ Be concise, technical, and objective. Maximum 140 words.
       systemLoad: os.loadavg().map(n => Number(n.toFixed(2)))
     }
 
-    // 2. Fetch matched SOP runbook from local disk
     const matchedRunbook = runbookService.findBestRunbook(title + ' ' + description)
     const slaPolicy = SlaPolicyMatrix.getPolicy(priority)
 
@@ -136,14 +170,14 @@ You retrieved:
 - Enterprise SLA: ${JSON.stringify(slaPolicy)}
 - Matched SOP Runbook: "${matchedRunbook?.title}"
 - Runbook Procedures:
-${matchedRunbook?.content.slice(0, 600)}
+${matchedRunbook?.content.slice(0, 500)}
 
 Incident: "${title}" - "${description}"
 
 Synthesize the failure mechanism based on the telemetry and the matching SOP runbook. Maximum 120 words.
 `
     const toolThought = await aiService.complete(toolPrompt, "You are a senior site reliability and systems investigator.")
-    recordStep(
+    await recordStep(
       'Investigator Agent',
       2,
       toolThought,
@@ -170,7 +204,7 @@ Evaluate:
 Return an explicit verdict: [CONDITIONAL APPROVAL: OPERATOR AUTHORIZATION REQUIRED] or [VERIFIED & SAFE TO EXECUTE]. Maximum 100 words.
 `
     const verifierThought = await aiService.complete(verifierPrompt, "You are a strict enterprise compliance and risk verification officer.")
-    recordStep(
+    await recordStep(
       'Verification Agent',
       3,
       verifierThought,
@@ -202,7 +236,7 @@ Keep it crisp, professional, and ready for immediate deployment.
     const requiresApproval = priority === 'CRITICAL' || priority === 'HIGH'
     const finalStatus = requiresApproval ? 'AWAITING_APPROVAL' : 'RESOLVED'
 
-    recordStep(
+    await recordStep(
       'Synthesizer Agent',
       4,
       `Final resolution synthesized. Security status: ${finalStatus}.`,
@@ -216,6 +250,21 @@ Keep it crisp, professional, and ready for immediate deployment.
       WHERE id = ?
     `).run(finalStatus, finalResolution, incidentId)
 
+    // Close LangSmith parent run
+    let langsmithTraceId: string | null = null
+    let langsmithTraceUrl: string | null = null
+
+    if (runTree) {
+      try {
+        await runTree.end({ outputs: { status: finalStatus, finalResolution: finalResolution.slice(0, 300) } })
+        await runTree.patchRun()
+        langsmithTraceId = runTree.id
+        langsmithTraceUrl = `https://smith.langchain.com/o/default/projects/p/${process.env.LANGSMITH_PROJECT || '16bits-omniops'}?r=${runTree.id}`
+      } catch {
+        // ignore
+      }
+    }
+
     const executionDurationMs = Date.now() - startTime
 
     return {
@@ -227,7 +276,9 @@ Keep it crisp, professional, and ready for immediate deployment.
       matchedRunbookTitle: matchedRunbook?.title || 'Standard Enterprise SOP',
       logs,
       finalResolution,
-      executionDurationMs
+      executionDurationMs,
+      langsmithTraceId,
+      langsmithTraceUrl
     }
   }
 
