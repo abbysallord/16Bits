@@ -32,16 +32,19 @@ If the local `16Bits OmniOps` engine is running:
 
 ```bash
 # General triage
-node /home/dhanush/Projects/Hackathons/16Bits/cli/16bits.js triage "<error log or incident summary>" [PRIORITY]
+omniops triage "<error log or incident summary>" [PRIORITY]
 
-# Example
-node /home/dhanush/Projects/Hackathons/16Bits/cli/16bits.js triage "Postgres connection pool exhausted on prod-db-01" CRITICAL
+# Direct stdin pipe support
+cat /var/log/syslog | tail -n 25 | omniops CRITICAL
+
+# Host infrastructure diagnostics
+omniops doctor
 
 # Check status and loaded SOPs
-node /home/dhanush/Projects/Hackathons/16Bits/cli/16bits.js status
+omniops status
 
 # Authorize high-risk remediation
-node /home/dhanush/Projects/Hackathons/16Bits/cli/16bits.js approve <incident-uuid>
+omniops approve <incident-uuid>
 ```
 
 ### 2. Via REST Webhook

@@ -170,7 +170,7 @@ async function triageIncident(query, priority = 'HIGH') {
     if (result.status === 'AWAITING_APPROVAL') {
       console.log(`\n${c.bgYellow} 🛑 SLA GUARDRAIL: OPERATOR AUTHORIZATION REQUIRED ${c.reset}`)
       console.log(`${c.yellow}To authorize this plan, run:${c.reset}`)
-      console.log(`  ${c.bold}16bits approve ${result.incidentId}${c.reset}\n`)
+      console.log(`  ${c.bold}omniops approve ${result.incidentId}${c.reset}\n`)
     } else {
       console.log(`\n${c.bgGreen} ✔ REMEDIATION COMPLETED & COMMITTED TO SQLITE ${c.reset}\n`)
     }
@@ -232,9 +232,9 @@ async function main() {
     case 'alert': {
       const text = args.join(' ')
       if (!text) {
-        console.log(`${c.yellow}Usage:${c.reset} 16bits triage "<incident description or error>" [PRIORITY]`)
-        console.log(`       cat error.log | 16bits`)
-        console.log(`Example: 16bits triage "Postgres pool exhausted on replica-02" CRITICAL`)
+        console.log(`${c.yellow}Usage:${c.reset} omniops triage "<incident description or error>" [PRIORITY]`)
+        console.log(`       cat error.log | omniops`)
+        console.log(`Example: omniops triage "Postgres pool exhausted on replica-02" CRITICAL`)
         process.exit(1)
       }
       const priority = args[args.length - 1].match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i) ? args.pop() : 'HIGH'
@@ -244,7 +244,7 @@ async function main() {
     case 'approve': {
       const id = args[0]
       if (!id) {
-        console.log(`${c.yellow}Usage:${c.reset} 16bits approve <incidentId>`)
+        console.log(`${c.yellow}Usage:${c.reset} omniops approve <incidentId>`)
         process.exit(1)
       }
       await approveIncident(id)
@@ -253,16 +253,16 @@ async function main() {
     default:
       printBanner()
       console.log(`${c.bold}Available Commands:${c.reset}`)
-      console.log(`  ${c.green}16bits doctor${c.reset}                   Probe host health, memory, and listening ports`)
-      console.log(`  ${c.green}16bits status${c.reset}                   Check cluster health and active runbooks`)
-      console.log(`  ${c.green}16bits triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
-      console.log(`  ${c.green}16bits approve <id>${c.reset}             Sign off on critical operator safety gate`)
+      console.log(`  ${c.green}omniops doctor${c.reset}                   Probe host health, memory, and listening ports`)
+      console.log(`  ${c.green}omniops status${c.reset}                   Check cluster health and active runbooks`)
+      console.log(`  ${c.green}omniops triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
+      console.log(`  ${c.green}omniops approve <id>${c.reset}             Sign off on critical operator safety gate`)
       console.log(`\n${c.bold}Pipe Stdin Support:${c.reset}`)
-      console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | 16bits${c.reset}`)
-      console.log(`  ${c.cyan}docker logs container 2>&1 | 16bits${c.reset}`)
+      console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | omniops${c.reset}`)
+      console.log(`  ${c.cyan}docker logs container 2>&1 | omniops${c.reset}`)
       console.log(`\n${c.dim}Examples:${c.reset}`)
-      console.log(`  16bits triage "Stripe 429 webhook throttle spike" CRITICAL`)
-      console.log(`  16bits doctor\n`)
+      console.log(`  omniops triage "Stripe 429 webhook throttle spike" CRITICAL`)
+      console.log(`  omniops doctor\n`)
       break
   }
 }

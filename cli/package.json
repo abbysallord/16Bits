@@ -4,7 +4,8 @@
   "description": "Autonomous site reliability and incident response swarm for production systems",
   "type": "module",
   "bin": {
-    "16bits": "./16bits.js"
+    "omniops": "./omniops.js",
+    "16bits": "./omniops.js"
   },
   "keywords": [
     "sre",

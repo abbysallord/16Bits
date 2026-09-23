@@ -30,32 +30,32 @@ Pipe standard error, docker logs, or build failures directly into the 4-agent sw
 
 ```bash
 # Pipe any error log
-cat /var/log/syslog | tail -n 25 | 16bits
+cat /var/log/syslog | tail -n 25 | omniops
 
 # Pipe docker or container logs
-docker logs billing-service 2>&1 | 16bits CRITICAL
+docker logs billing-service 2>&1 | omniops CRITICAL
 
 # Pipe command failures
-npm run build 2>&1 | 16bits
+npm run build 2>&1 | omniops
 ```
 
 ### 2. Run Host Infrastructure Diagnostics (`doctor`)
 Inspect host RAM, CPU load averages, and probe listening service ports (Express, Redis, Postgres):
 
 ```bash
-16bits doctor
+omniops doctor
 ```
 
 ### 3. Triage Specific Incidents
 ```bash
-16bits triage "Stripe webhook 429 rate limit spike on billing-api" HIGH
+omniops triage "Stripe webhook 429 rate limit spike on billing-api" HIGH
 ```
 
 ### 4. Human-in-the-Loop Operator Sign-Off
 When high-risk infrastructure remediation is proposed, the Verifier Gate halts execution behind `AWAITING_APPROVAL`. Sign off directly from your terminal:
 
 ```bash
-16bits approve <incidentId>
+omniops approve <incidentId>
 ```
 
 ---
