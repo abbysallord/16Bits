@@ -15,7 +15,9 @@ import {
   Check,
   Database,
   ArrowRight,
-  FileText
+  FileText,
+  Copy,
+  CheckCheck
 } from 'lucide-react'
 import {
   checkBackendHealth,
@@ -37,6 +39,7 @@ export default function App() {
   const [logs, setLogs] = useState<AgentStepLog[]>([])
   const [isExecuting, setIsExecuting] = useState<boolean>(false)
   const [finalResult, setFinalResult] = useState<SwarmResult | null>(null)
+  const [copied, setCopied] = useState<boolean>(false)
 
   // Incident form state
   const [title, setTitle] = useState<string>('Payment Webhook Ingestion Throttle on Stripe Gateway')
@@ -155,15 +158,15 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Agent 1 */}
             <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 1
-                ? 'border-emerald-500 bg-emerald-950/20 shadow-lg shadow-emerald-500/10'
+              activeStep === 1 && isExecuting
+                ? 'border-blue-500 bg-blue-950/30 shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/40 animate-pulse'
                 : activeStep > 1
                 ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
                 : 'border-neutral-800 bg-neutral-950/50 opacity-60'
             }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
-                  Stage 1
+                  Stage 1 {activeStep === 1 && isExecuting && '• RUNNING'}
                 </span>
                 {activeStep > 1 && <Check className="h-4 w-4 text-emerald-400" />}
               </div>
@@ -177,15 +180,15 @@ export default function App() {
 
             {/* Agent 2 */}
             <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 2
-                ? 'border-emerald-500 bg-emerald-950/20 shadow-lg shadow-emerald-500/10'
+              activeStep === 2 && isExecuting
+                ? 'border-purple-500 bg-purple-950/30 shadow-lg shadow-purple-500/20 ring-2 ring-purple-500/40 animate-pulse'
                 : activeStep > 2
                 ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
                 : 'border-neutral-800 bg-neutral-950/50 opacity-60'
             }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
-                  Stage 2
+                  Stage 2 {activeStep === 2 && isExecuting && '• RUNNING'}
                 </span>
                 {activeStep > 2 && <Check className="h-4 w-4 text-emerald-400" />}
               </div>
@@ -199,15 +202,15 @@ export default function App() {
 
             {/* Agent 3 */}
             <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 3
-                ? 'border-emerald-500 bg-emerald-950/20 shadow-lg shadow-emerald-500/10'
+              activeStep === 3 && isExecuting
+                ? 'border-amber-500 bg-amber-950/30 shadow-lg shadow-amber-500/20 ring-2 ring-amber-500/40 animate-pulse'
                 : activeStep > 3
                 ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
                 : 'border-neutral-800 bg-neutral-950/50 opacity-60'
             }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
-                  Stage 3
+                  Stage 3 {activeStep === 3 && isExecuting && '• RUNNING'}
                 </span>
                 {activeStep > 3 && <Check className="h-4 w-4 text-emerald-400" />}
               </div>
@@ -221,13 +224,15 @@ export default function App() {
 
             {/* Agent 4 */}
             <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 4
-                ? 'border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-500/20'
+              activeStep === 4 && isExecuting
+                ? 'border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/40 animate-pulse'
+                : finalResult
+                ? 'border-emerald-500/80 bg-neutral-900/80 text-neutral-300'
                 : 'border-neutral-800 bg-neutral-950/50 opacity-60'
             }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                  Stage 4
+                  Stage 4 {activeStep === 4 && isExecuting && '• RUNNING'}
                 </span>
                 {finalResult && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
               </div>
@@ -288,6 +293,26 @@ export default function App() {
                   </div>
                   <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
                     Lag exceeding 180s; inconsistent financial reporting.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    selectBenchmark(
+                      'ICU Cardiac Telemetry Pipeline WebSocket Drop',
+                      'Hospital central monitoring hub dropped real-time ECG telemetry stream from 48 bedside cardiac monitors across Ward 3.',
+                      'CRITICAL'
+                    )
+                  }
+                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
+                >
+                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
+                    <span>3. Healthcare ICU Telemetry Drop</span>
+                    <span className="text-[10px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">CRITICAL</span>
+                  </div>
+                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
+                    48 bedside ECG monitors dropped; immediate failover required.
                   </p>
                 </button>
               </div>
@@ -406,10 +431,33 @@ export default function App() {
 
             {/* Final Synthesized Resolution Card */}
             {finalResult && (
-              <div className="bg-neutral-900/40 border border-emerald-500/30 rounded-xl p-5 space-y-3">
-                <div className="flex items-center gap-2 font-bold text-white text-sm">
-                  <FileText className="h-4 w-4 text-emerald-400" />
-                  <span>Synthesized Resolution & Actionable Plan</span>
+              <div className="bg-neutral-900/40 border border-emerald-500/30 rounded-xl p-5 space-y-3 shadow-lg shadow-emerald-500/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-white text-sm">
+                    <FileText className="h-4 w-4 text-emerald-400" />
+                    <span>Synthesized Resolution & Actionable Plan</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(finalResult.finalResolution)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-mono text-neutral-300 transition"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5 text-neutral-400" />
+                        <span>Copy Fix</span>
+                      </>
+                    )}
+                  </button>
                 </div>
                 <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800 text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap max-h-[400px] overflow-y-auto font-sans">
                   {finalResult.finalResolution}
