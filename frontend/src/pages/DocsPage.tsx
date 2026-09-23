@@ -364,9 +364,24 @@ npx omniops listen --port 8000
                   <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Pipe production server logs directly from stdout</div>
                   <div className="font-bold">cat /var/log/nginx/error.log | omniops</div>
 
+                  <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Authenticate operator and store JWT in ~/.omniops/config.json</div>
+                  <div className="font-bold">omniops login</div>
+
+                  <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Check active identity, team workspace &amp; token status</div>
+                  <div className="font-bold">omniops whoami</div>
+
+                  <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># View incidents triaged from this machine (~/.omniops/history.json)</div>
+                  <div className="font-bold">omniops history</div>
+
+                  <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Claim &amp; migrate machine incident history into private workspace ledger</div>
+                  <div className="font-bold">omniops claim</div>
+
                   <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Sign off and approve remediation for an incident</div>
                   <div className="font-bold">omniops approve inc-1741234567890</div>
-                  <div style={{ color: 'var(--ink-faint)' }}># Signs in as the demo operator by default; set OMNIOPS_TOKEN or OMNIOPS_EMAIL / OMNIOPS_PASSWORD for your own account (CLI v1.0.3+)</div>
+                  <div style={{ color: 'var(--ink-faint)' }}># If unauthenticated, displays operator guidance and launches browser sign-in/approval link</div>
+
+                  <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Clear local credentials and sign out</div>
+                  <div className="font-bold">omniops logout</div>
 
                   <div className="mt-3" style={{ color: 'var(--ink-faint)' }}># Start continuous alert ingestion daemon</div>
                   <div className="font-bold">omniops listen --port 8000</div>
@@ -376,7 +391,7 @@ npx omniops listen --port 8000
                   onClick={() =>
                     handleCopy(
                       'cli-commands',
-                      'npm install -g omniops\nnpx omniops "Stripe payment gateway webhook consumer lag > 4000"\ncat /var/log/nginx/error.log | omniops'
+                      'npm install -g omniops\nomniops login\nomniops history\nomniops claim\nomniops approve <incident-id>'
                     )
                   }
                   className="btn btn-xs absolute top-3 right-3 font-code"
@@ -394,6 +409,30 @@ npx omniops listen --port 8000
                     </>
                   )}
                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4" style={{ fontSize: 13 }}>
+                <div className="p-3" style={{ border: '2px solid var(--border)', backgroundColor: 'var(--bg-inset)' }}>
+                  <span className="font-bold block mb-1 text-accent font-display" style={{ fontSize: 11 }}>
+                    MACHINE HISTORY &amp; WORKSPACE CLAIMING
+                  </span>
+                  <p className="leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+                    Every incident triaged from your local machine via CLI is logged locally to{' '}
+                    <code className="font-code px-1 py-0.5" style={codeBlock}>~/.omniops/history.json</code>.
+                    When you sign up or log in (<code className="font-code px-1 py-0.5" style={codeBlock}>omniops login</code> or on the web portal),
+                    all machine-evaluated incidents are automatically <strong>claimed and linked</strong> to your private team workspace,
+                    making your historical triage records and remediations permanently accessible under your private <code className="font-code px-1 py-0.5" style={codeBlock}>/audit</code> ledger.
+                  </p>
+                </div>
+                <div className="p-3" style={{ border: '2px solid var(--border)', backgroundColor: 'var(--bg-inset)' }}>
+                  <span className="font-bold block mb-1 text-accent font-display" style={{ fontSize: 11 }}>
+                    INTERACTIVE BROWSER APPROVAL FALLBACK
+                  </span>
+                  <p className="leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+                    Running <code className="font-code px-1 py-0.5" style={codeBlock}>omniops approve &lt;id&gt;</code> without an existing session will no longer fail with an ambiguous raw token error.
+                    Instead, the CLI prompts you with friendly operator sign-in instructions and automatically launches the deep-linked approval portal in your browser so you can sign in and approve in one seamless click.
+                  </p>
+                </div>
               </div>
             </div>
           </section>
@@ -666,10 +705,12 @@ receivers:
                   {[
                     ['GET', '/api/health', 'Health status, active AI provider, and database state', 'var(--accent)'],
                     ['POST', '/api/auth/login', 'Authenticate operator & return signed JWT bearer token', 'var(--success)'],
+                    ['POST', '/api/auth/register', 'Register operator account & provision private team workspace', 'var(--success)'],
                     ['GET', '/api/incidents', 'Fetch recent incidents and operational audit trails', 'var(--accent)'],
                     ['POST', '/api/agents/execute', 'Synchronous 4-agent swarm orchestration endpoint', 'var(--success)'],
                     ['POST', '/api/agents/stream', 'Server-Sent Events (SSE) streaming agent execution log', 'var(--success)'],
                     ['POST', '/api/agents/approve', 'Operator sign-off on awaiting actions (requires Bearer JWT)', 'var(--warning)'],
+                    ['POST', '/api/agents/claim', 'Batch adopt local machine / demo incidents into team workspace', 'var(--success)'],
                     ['GET', '/api/agents/runbooks', 'List all loaded Standard Operating Procedure runbooks', 'var(--accent)'],
                     ['POST', '/api/agents/runbooks', 'Upload and index a new custom Markdown SOP runbook', 'var(--success)'],
                     ['POST', '/api/agents/webhook/alert', 'Universal alert ingestion (PagerDuty, Datadog, Prometheus)', 'var(--success)'],
@@ -692,8 +733,8 @@ receivers:
             <div className="space-y-4 leading-relaxed" style={{ fontSize: 14, color: 'var(--ink)' }}>
               <p>
                 In high-stakes enterprise environments (banking, healthcare, critical infrastructure),
-                unsupervised AI execution is a severe compliance violation. OmniOps enforces three strict
-                governance tiers:
+                unsupervised AI execution is a severe compliance violation. OmniOps enforces strict
+                governance and isolation tiers:
               </p>
               <ul className="list-disc list-inside space-y-2" style={{ fontSize: 13 }}>
                 <li>
@@ -708,8 +749,10 @@ receivers:
                   An authorized operator must sign off via JWT Bearer token or CLI approval command.
                 </li>
                 <li>
-                  <strong>Audit Logging:</strong> Every agent step, the approving operator and the approval
-                  time are recorded in the database (Postgres, or SQLite locally), and traced to LangSmith when a key is set.
+                  <strong>Private Workspace Isolation &amp; Audit Logging:</strong> Every agent step, approving operator identity, and approval timestamp are cryptographically bound to the user's JWT and recorded in the database ledger. Incident trails and metrics are strictly isolated within your private team workspace, preventing cross-tenant leakage.
+                </li>
+                <li>
+                  <strong>Machine-to-Workspace Incident Claiming:</strong> Incidents triaged locally via the CLI prior to signing up or authenticating are tracked in <code className="font-code px-1.5 py-0.5" style={codeBlock}>~/.omniops/history.json</code>. Upon signing up or executing <code className="font-code px-1.5 py-0.5" style={codeBlock}>omniops login</code>, all local machine incidents are automatically adopted and claimed into your private workspace, ensuring uninterrupted audit compliance.
                 </li>
               </ul>
             </div>
