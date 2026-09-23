@@ -39,6 +39,16 @@ app.use('/api/auth', authRouter)
 app.use('/api/incidents', incidentRouter)
 app.use('/api/agents', agentRouter)
 
+// Webhook Aliases: supports both /api/agents/webhook/alert and /api/webhooks/alerts
+app.use('/api/webhooks', (req, res, next) => {
+  if (req.url === '/alerts' || req.url === '/alert' || req.url === '/alerts/' || req.url === '/alert/') {
+    req.url = '/webhook/alert'
+    return agentRouter(req, res, next)
+  }
+  next()
+})
+
+
 // Auto-seed demo credentials and benchmark incident if database is clean
 async function seedDemoData() {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }

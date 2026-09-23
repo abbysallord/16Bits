@@ -159,8 +159,11 @@ class: text-center
 
 Let's see **16Bits OmniOps** resolve a critical enterprise incident live!
 
-<div class="mt-8 flex justify-center gap-4">
-  <a href="https://one6bits.onrender.com" target="_blank" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition shadow-lg shadow-emerald-500/20">
+<div class="mt-8 flex justify-center flex-wrap gap-4">
+  <a href="https://16bits-omniops.vercel.app" target="_blank" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition shadow-lg shadow-emerald-500/20">
+    Launch Web Console ->
+  </a>
+  <a href="https://one6bits.onrender.com/api/health" target="_blank" class="px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-semibold transition border border-neutral-700">
     Render Backend Health ->
   </a>
   <a href="https://www.npmjs.com/package/omniops" target="_blank" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-lg shadow-blue-500/20">

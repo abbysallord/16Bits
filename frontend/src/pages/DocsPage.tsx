@@ -119,7 +119,7 @@ npx omniops listen --port 8000
 
 ## REST API Integration
 - Live API Base: https://one6bits.onrender.com
-- Ingest Alert: POST https://one6bits.onrender.com/api/webhooks/alerts
+- Ingest Alert: POST https://one6bits.onrender.com/api/agents/webhook/alert (alias: /api/webhooks/alerts)
 - Stream Execution: POST https://one6bits.onrender.com/api/agents/stream
 - Health Probe: GET https://one6bits.onrender.com/api/health
 `
@@ -517,7 +517,10 @@ npx omniops listen --port 8000
                 style={{ backgroundColor: '#f8fafc' }}
               >
                 <span className="font-bold text-neutral-900 block mb-1">
-                  POST https://one6bits.onrender.com/api/webhooks/alerts
+                  POST https://one6bits.onrender.com/api/agents/webhook/alert
+                </span>
+                <span className="text-neutral-500 block text-xs">
+                  Alias: POST https://one6bits.onrender.com/api/webhooks/alerts
                 </span>
                 <span className="text-neutral-500 block mb-3 text-xs">Content-Type: application/json</span>
                 <pre style={{ margin: 0, fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
@@ -718,8 +721,13 @@ npx omniops listen --port 8000
                   </tr>
                   <tr>
                     <td className="font-bold text-green-700 font-mono">POST</td>
-                    <td className="font-mono text-xs">/api/webhooks/alerts</td>
+                    <td className="font-mono text-xs">/api/agents/webhook/alert</td>
                     <td>Universal alert ingestion (PagerDuty, Datadog, Prometheus)</td>
+                  </tr>
+                  <tr>
+                    <td className="font-bold text-green-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/webhooks/alerts</td>
+                    <td>Direct alias for external alert webhook ingestion</td>
                   </tr>
                 </tbody>
               </table>

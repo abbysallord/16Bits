@@ -10,7 +10,29 @@
 import os from 'os'
 import net from 'net'
 
-const API_BASE = process.env.OMNIOPS_API_URL || 'http://localhost:8000'
+const DEFAULT_CLOUD_API = 'https://one6bits.onrender.com'
+let API_BASE = process.env.OMNIOPS_API_URL || DEFAULT_CLOUD_API
+
+async function initApiBase() {
+  if (process.env.OMNIOPS_API_URL) {
+    API_BASE = process.env.OMNIOPS_API_URL.replace(/\/$/, '')
+    return
+  }
+  // Fast probe to check if local server is listening on port 8000
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 200)
+    const res = await fetch('http://localhost:8000/api/health', { signal: controller.signal })
+    clearTimeout(timer)
+    if (res.ok) {
+      API_BASE = 'http://localhost:8000'
+      return
+    }
+  } catch {
+    // Localhost not responding, connect to production cloud engine
+  }
+  API_BASE = DEFAULT_CLOUD_API
+}
 
 const c = {
   reset: '\x1b[0m',
@@ -27,11 +49,12 @@ const c = {
 }
 
 function printBanner() {
+  const engineLabel = API_BASE.includes('localhost') ? 'Local Dev Engine' : 'Production Cloud Engine'
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════╗
 ║  [16BITS] OmniOps — Autonomous Operations Swarm CLI  ║
 ╚══════════════════════════════════════════════════════╝${c.reset}
-${c.dim}  Connected to Engine: ${API_BASE}${c.reset}
+${c.dim}  Connected to Engine [${engineLabel}]: ${API_BASE}${c.reset}
 `)
 }
 
@@ -268,6 +291,7 @@ async function approveIncident(incidentId) {
 }
 
 async function main() {
+  await initApiBase()
   const stdinData = await readStdin()
   const [,, command, ...args] = process.argv
 
@@ -312,6 +336,17 @@ async function main() {
       break
     }
     default:
+      // If user typed a direct error string like `omniops "Postgres replica lag > 180s" CRITICAL`
+      if (command && !command.startsWith('-')) {
+        const allTokens = [command, ...args]
+        const lastToken = allTokens[allTokens.length - 1]
+        const hasPriority = lastToken && lastToken.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i)
+        const priority = hasPriority ? allTokens.pop() : 'HIGH'
+        const text = allTokens.join(' ')
+        await triageIncident(text, priority)
+        break
+      }
+
       printBanner()
       console.log(`${c.bold}Available Commands:${c.reset}`)
       console.log(`  ${c.green}omniops doctor${c.reset}                   Probe host health, memory, and listening ports`)
@@ -322,7 +357,8 @@ async function main() {
       console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | omniops${c.reset}`)
       console.log(`  ${c.cyan}docker logs container 2>&1 | omniops${c.reset}`)
       console.log(`\n${c.dim}Examples:${c.reset}`)
-      console.log(`  omniops triage "Stripe 429 webhook throttle spike" CRITICAL`)
+      console.log(`  omniops "Stripe 429 webhook throttle spike" CRITICAL`)
+      console.log(`  omniops triage "Database connection pool saturated" HIGH`)
       console.log(`  omniops doctor\n`)
       break
   }
