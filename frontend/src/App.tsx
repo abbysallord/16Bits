@@ -358,8 +358,8 @@ function ConsoleView() {
           }}
         >
           Autonomous incident triage and remediation swarm for mission-critical infrastructure.
-          Four collaborative agents investigate root causes, query telemetry, and deploy
-          verified fixes in under 3 seconds — protected by cryptographic human approval gates.
+          Four collaborative agents investigate root causes, query telemetry, and propose
+          verified fixes in seconds, with a signed-in human approving every high-risk plan.
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">

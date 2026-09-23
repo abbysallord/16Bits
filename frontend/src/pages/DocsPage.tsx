@@ -321,7 +321,7 @@ npx omniops listen --port 8000
                       <li>Average MTTR: 3.4 seconds (99% reduction)</li>
                       <li>Autonomous 4-agent consensus DAG</li>
                       <li>Deterministic safety verification gate</li>
-                      <li>Cryptographically signed audit trail in SQLite</li>
+                      <li>Approver identity from the operator JWT, recorded in the SQLite audit trail</li>
                     </ul>
                   </div>
                 </div>
@@ -754,9 +754,8 @@ npx omniops listen --port 8000
                   An authorized operator must sign off via JWT Bearer token or CLI approval command.
                 </li>
                 <li>
-                  <strong>Immutable Audit Logging:</strong> Every agent thought, telemetry query, human approval
-                  timestamp, and execution result is cryptographically recorded in SQLite with WAL journal mode
-                  and mirrored to LangSmith.
+                  <strong>Audit Logging:</strong> Every agent step, the approving operator and the approval
+                  time are recorded in SQLite (WAL journal mode), and traced to LangSmith when a key is set.
                 </li>
               </ul>
             </div>
