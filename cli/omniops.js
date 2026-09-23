@@ -59,7 +59,7 @@ function printBanner() {
   const engineLabel = isCloud ? 'Production Cloud' : 'Localhost Dev'
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════════════╗
-║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.4) ║
+║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.5) ║
 ║  ${c.dim}// 4-AGENT SWARM · AST CODE KNOWLEDGE · LANGSMITH TRACED //${c.cyan} ║
 ╚══════════════════════════════════════════════════════════════╝${c.reset}
   ${c.dim}Engine Link:${c.reset} [${isCloud ? c.green + engineLabel : c.yellow + engineLabel}${c.reset}] -> ${c.cyan}${API_BASE}${c.reset}
@@ -809,6 +809,100 @@ async function approveIncident(incidentId) {
 }
 
 // ============================================================================
+// Command Aliases & Resolution
+// ============================================================================
+
+const COMMAND_ALIASES = {
+  login: ['login', 'signin', 'sign-in', 'log-in', 'auth', 'authenticate'],
+  logout: ['logout', 'signout', 'sign-out', 'log-out'],
+  whoami: ['whoami', 'whaomi', 'who', 'me', 'user', 'who-am-i', 'who-are-you'],
+  history: ['history', 'hist', 'incidents', 'my-incidents', 'recent', 'audit-local', 'local-history'],
+  claim: ['claim', 'claims', 'adopt', 'sync', 'claim-all', 'migrate', 'import'],
+  approve: ['approve', 'accept', 'signoff', 'sign-off', 'authorize'],
+  status: ['status', 'health', 'ping', 'info'],
+  doctor: ['doctor', 'diag', 'diagnose', 'check', 'probe'],
+  triage: ['triage', 'alert', 'eval', 'evaluate', 'investigate', 'solve', 'run'],
+  help: ['help', '--help', '-h', '/?'],
+  version: ['version', '--version', '-v']
+}
+
+function levenshtein(a, b) {
+  const an = a ? a.length : 0
+  const bn = b ? b.length : 0
+  if (an === 0) return bn
+  if (bn === 0) return an
+  const matrix = Array(bn + 1).fill(0).map((_, i) => [i])
+  for (let j = 0; j <= an; j++) matrix[0][j] = j
+  for (let i = 1; i <= bn; i++) {
+    for (let j = 1; j <= an; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        )
+      }
+    }
+  }
+  return matrix[bn][an]
+}
+
+function resolveCommand(raw) {
+  if (!raw) return null
+  const clean = raw.toLowerCase().trim().replace(/^--?/, '')
+
+  for (const [canonical, aliases] of Object.entries(COMMAND_ALIASES)) {
+    if (canonical === clean || aliases.includes(clean) || aliases.includes(raw.toLowerCase().trim())) {
+      return canonical
+    }
+  }
+
+  // Fuzzy match against canonical commands (e.g. typos like loginn, histor)
+  let closest = null
+  let minDistance = 99
+  for (const canonical of Object.keys(COMMAND_ALIASES)) {
+    const dist = levenshtein(clean, canonical)
+    if (dist < minDistance) {
+      minDistance = dist
+      closest = canonical
+    }
+  }
+
+  if (minDistance <= 2 && closest) {
+    return closest
+  }
+
+  return null
+}
+
+function printHelp() {
+  printBanner()
+  console.log(`${c.bold}Available Commands:${c.reset}`)
+  console.log(`  ${c.green}omniops login${c.reset}                    Authenticate terminal to private team workspace`)
+  console.log(`  ${c.green}omniops whoami${c.reset}                   Check current operator & active workspace`)
+  console.log(`  ${c.green}omniops history${c.reset}                  List recent incidents triaged on this machine`)
+  console.log(`  ${c.green}omniops claim${c.reset}                    Allocate machine incidents to signed-in workspace`)
+  console.log(`  ${c.green}omniops approve <id>${c.reset}             Sign off on critical operator safety gate`)
+  console.log(`  ${c.green}omniops logout${c.reset}                   Disconnect session and revert to public sandbox`)
+  console.log(`  ${c.green}omniops triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
+  console.log(`  ${c.green}omniops doctor${c.reset}                   Probe host health, memory, and listening ports`)
+  console.log(`  ${c.green}omniops status${c.reset}                   Check cluster health and active runbooks`)
+  console.log(`  ${c.green}omniops help${c.reset}                     Show this command reference`)
+  console.log(`\n${c.bold}Pipe Stdin Support:${c.reset}`)
+  console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | omniops${c.reset}`)
+  console.log(`  ${c.cyan}docker logs container 2>&1 | omniops${c.reset}`)
+  console.log(`\n${c.dim}Examples:${c.reset}`)
+  console.log(`  omniops login`)
+  console.log(`  omniops whoami`)
+  console.log(`  omniops history`)
+  console.log(`  omniops claim`)
+  console.log(`  omniops approve 58df486e-e5b4-4b16-a004-21257610a72f`)
+  console.log(`  omniops triage "Stripe 429 webhook throttle spike" CRITICAL\n`)
+}
+
+// ============================================================================
 // Main Dispatcher
 // ============================================================================
 
@@ -827,57 +921,35 @@ async function main() {
     return
   }
 
-  // Case 2: Interactive CLI subcommands
-  switch (command) {
+  // Case 2: No command passed -> Show help
+  if (!command) {
+    printHelp()
+    return
+  }
+
+  // Case 3: Match against known commands, aliases, and common typos
+  const resolved = resolveCommand(command)
+
+  switch (resolved) {
     case 'login':
-    case 'signin':
-    case 'auth':
       await loginCommand()
-      break
+      return
 
     case 'logout':
-    case 'signout':
       logoutCommand()
-      break
+      return
 
     case 'whoami':
-    case 'user':
       await whoamiCommand()
-      break
-
-    case 'status':
-    case 'health':
-      await checkHealth()
-      break
-
-    case 'doctor':
-      await runDoctor()
-      break
-
-    case 'triage':
-    case 'alert': {
-      const text = args.join(' ')
-      if (!text) {
-        console.log(`${c.yellow}Usage:${c.reset} omniops triage "<incident description or error>" [PRIORITY]`)
-        console.log(`       cat error.log | omniops`)
-        console.log(`Example: omniops triage "Postgres pool exhausted on replica-02" CRITICAL`)
-        process.exit(1)
-      }
-      const priority = args[args.length - 1].match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i) ? args.pop() : 'HIGH'
-      await triageIncident(args.join(' ') || text, priority)
-      break
-    }
+      return
 
     case 'history':
-    case 'incidents':
       await historyCommand()
-      break
+      return
 
     case 'claim':
-    case 'adopt':
-    case 'sync':
       await claimCommand()
-      break
+      return
 
     case 'approve': {
       const id = args[0]
@@ -886,41 +958,68 @@ async function main() {
         process.exit(1)
       }
       await approveIncident(id)
-      break
+      return
     }
 
-    default:
-      // If user typed a direct error string like `omniops "Postgres replica lag > 180s" CRITICAL`
-      if (command && !command.startsWith('-')) {
-        const allTokens = [command, ...args]
-        const lastToken = allTokens[allTokens.length - 1]
-        const hasPriority = lastToken && lastToken.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i)
-        const priority = hasPriority ? allTokens.pop() : 'HIGH'
-        const text = allTokens.join(' ')
-        await triageIncident(text, priority)
-        break
-      }
+    case 'status':
+      await checkHealth()
+      return
 
-      printBanner()
-      console.log(`${c.bold}Available Commands:${c.reset}`)
-      console.log(`  ${c.green}omniops triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
-      console.log(`  ${c.green}omniops approve <id>${c.reset}             Sign off on critical operator safety gate`)
-      console.log(`  ${c.green}omniops history${c.reset}                  List recent incidents triaged on this machine`)
-      console.log(`  ${c.green}omniops claim${c.reset}                    Allocate machine incidents to signed-in workspace`)
-      console.log(`  ${c.green}omniops login${c.reset}                    Authenticate terminal to private team workspace`)
-      console.log(`  ${c.green}omniops whoami${c.reset}                   Check current operator & active workspace`)
-      console.log(`  ${c.green}omniops logout${c.reset}                   Disconnect session and revert to public sandbox`)
-      console.log(`  ${c.green}omniops doctor${c.reset}                   Probe host health, memory, and listening ports`)
-      console.log(`  ${c.green}omniops status${c.reset}                   Check cluster health and active runbooks`)
-      console.log(`\n${c.bold}Pipe Stdin Support:${c.reset}`)
-      console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | omniops${c.reset}`)
-      console.log(`  ${c.cyan}docker logs container 2>&1 | omniops${c.reset}`)
-      console.log(`\n${c.dim}Examples:${c.reset}`)
-      console.log(`  omniops "Stripe 429 webhook throttle spike" CRITICAL`)
-      console.log(`  omniops approve 58df486e-e5b4-4b16-a004-21257610a72f`)
-      console.log(`  omniops login\n`)
-      break
+    case 'doctor':
+      await runDoctor()
+      return
+
+    case 'version':
+      console.log(`omniops v1.0.5`)
+      return
+
+    case 'help':
+      printHelp()
+      return
+
+    case 'triage': {
+      const text = args.join(' ')
+      if (!text) {
+        console.log(`${c.yellow}Usage:${c.reset} omniops triage "<incident description or error>" [PRIORITY]`)
+        console.log(`       cat error.log | omniops`)
+        console.log(`Example: omniops triage "Postgres pool exhausted on replica-02" CRITICAL`)
+        process.exit(1)
+      }
+      const priority = args[args.length - 1]?.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i) ? args.pop() : 'HIGH'
+      await triageIncident(args.join(' ') || text, priority)
+      return
+    }
   }
+
+  // Case 4: Incident problem statement detection
+  // To avoid confusing commands with incidents, we only treat input as an incident if:
+  // - Multiple arguments were supplied, OR
+  // - The string contains spaces, OR
+  // - The text is longer than 20 chars, OR
+  // - The string contains diagnostic keywords (error, fail, timeout, etc.)
+  const isDirectIncident = (
+    args.length > 0 ||
+    command.includes(' ') ||
+    command.length > 20 ||
+    Boolean(command.match(/error|fail|lag|down|leak|timeout|crash|spike|500|502|503|504|429|exception|panic|broken|critical|alert/i))
+  )
+
+  if (isDirectIncident && !command.startsWith('-')) {
+    const allTokens = [command, ...args]
+    const lastToken = allTokens[allTokens.length - 1]
+    const hasPriority = lastToken && lastToken.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i)
+    const priority = hasPriority ? allTokens.pop() : 'HIGH'
+    const text = allTokens.join(' ')
+    await triageIncident(text, priority)
+    return
+  }
+
+  // Case 5: Single unrecognized word or invalid option: show guidance without triggering swarm!
+  console.log(`\n${c.red}[FAIL] Unknown command:${c.reset} "${command}"`)
+  console.log(`${c.yellow}To evaluate an incident alert, use:${c.reset} omniops triage "${command}" [PRIORITY]`)
+  console.log(`${c.dim}Or run one of the standard commands below:${c.reset}\n`)
+  printHelp()
+  process.exit(1)
 }
 
 main()
