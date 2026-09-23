@@ -76,6 +76,12 @@ const SQLITE_SCHEMA = `
     groq_api_key TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS password_resets (
+    user_id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_by TEXT
+  );
 `
 
 const POSTGRES_SCHEMA = `
@@ -139,9 +145,16 @@ const POSTGRES_SCHEMA = `
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
   ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE incidents ADD COLUMN IF NOT EXISTS org_id TEXT;
   ALTER TABLE runbooks ADD COLUMN IF NOT EXISTS org_id TEXT;
   CREATE INDEX IF NOT EXISTS idx_incidents_org ON incidents(org_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS password_resets (
+    user_id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_by TEXT
+  );
 `
 
 // Rewrite `?` placeholders to $1..$n, skipping anything inside single-quoted SQL strings
@@ -233,6 +246,8 @@ function createSqliteDriver(): Driver {
         const tcols = (sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name)
         if (!tcols.includes('org_id')) sqlite.exec(`ALTER TABLE ${table} ADD COLUMN org_id TEXT`)
       }
+      const ucols = (sqlite.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>).map((c) => c.name)
+      if (!ucols.includes('token_version')) sqlite.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')
       sqlite.exec('CREATE INDEX IF NOT EXISTS idx_incidents_org ON incidents(org_id, created_at DESC)')
     },
     describe() {

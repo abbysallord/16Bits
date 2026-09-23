@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { ShieldCheck, LogOut } from 'lucide-react'
-import { loginUser, registerUser, checkBackendHealth, claimIncidents } from './services/api'
+import { ShieldCheck, LogOut, Eye, EyeOff } from 'lucide-react'
+import { loginUser, registerUser, resetPassword, checkBackendHealth, claimIncidents } from './services/api'
 import type { User } from './services/api'
 
 // Public demo operator seeded by the backend (see seedDemoData in backend/src/server.ts)
@@ -115,9 +115,61 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
-type Mode = 'signin' | 'register'
+type Mode = 'signin' | 'register' | 'reset'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Password input with a show/hide (eye) toggle. Used on every password field in the app.
+export function PasswordInput(props: {
+  id?: string
+  value: string
+  onChange: (v: string) => void
+  autoComplete: string
+  placeholder?: string
+  ariaLabel?: string
+  className?: string
+  style?: React.CSSProperties
+}) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        id={props.id}
+        type={visible ? 'text' : 'password'}
+        className={props.className || 'input'}
+        style={{ fontSize: 12, ...props.style, paddingRight: 44 }}
+        value={props.value}
+        placeholder={props.placeholder}
+        aria-label={props.ariaLabel}
+        autoComplete={props.autoComplete}
+        spellCheck={false}
+        autoCapitalize="off"
+        onChange={(ev) => props.onChange(ev.target.value)}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-pressed={visible}
+        title={visible ? 'Hide' : 'Show'}
+        style={{
+          position: 'absolute',
+          right: 8,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: 'transparent',
+          border: 'none',
+          padding: 4,
+          cursor: 'pointer',
+          color: 'var(--ink)',
+          lineHeight: 0
+        }}
+      >
+        {visible ? <EyeOff size={16} strokeWidth={2.5} /> : <Eye size={16} strokeWidth={2.5} />}
+      </button>
+    </div>
+  )
+}
 
 function Field(props: {
   id: string
@@ -130,15 +182,19 @@ function Field(props: {
   return (
     <div style={{ marginBottom: 8 }}>
       <label htmlFor={props.id} className="font-display block mb-1" style={{ fontSize: 8 }}>{props.label}</label>
-      <input
-        id={props.id}
-        type={props.type}
-        className="input"
-        style={{ fontSize: 12 }}
-        value={props.value}
-        autoComplete={props.autoComplete}
-        onChange={(ev) => props.onChange(ev.target.value)}
-      />
+      {props.type === 'password' ? (
+        <PasswordInput id={props.id} value={props.value} autoComplete={props.autoComplete} onChange={props.onChange} />
+      ) : (
+        <input
+          id={props.id}
+          type={props.type}
+          className="input"
+          style={{ fontSize: 12 }}
+          value={props.value}
+          autoComplete={props.autoComplete}
+          onChange={(ev) => props.onChange(ev.target.value)}
+        />
+      )}
     </div>
   )
 }
@@ -151,6 +207,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
   const [confirm, setConfirm] = useState('')
   const [teamName, setTeamName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
+  const [resetCode, setResetCode] = useState('')
   const [busy, setBusy] = useState(false)
   // Hide the demo button when the backend runs with DEMO_ACCOUNT=off (shown until health says otherwise)
   const [demoEnabled, setDemoEnabled] = useState(true)
@@ -184,6 +241,13 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
     if (mode === 'signin') {
       if (!email || !password) return setError('Enter your email and password')
       return run(() => loginUser(email.trim(), password))
+    }
+    if (mode === 'reset') {
+      if (!EMAIL_RE.test(email.trim())) return setError('Enter a valid email address')
+      if (resetCode.trim().length < 6) return setError('Enter the reset code from your team admin')
+      if (password.length < 6) return setError('New password must be at least 6 characters')
+      if (password !== confirm) return setError('Passwords do not match')
+      return run(() => resetPassword(email.trim(), resetCode.trim(), password))
     }
     if (name.trim().length < 2) return setError('Name must be at least 2 characters')
     if (!EMAIL_RE.test(email.trim())) return setError('Enter a valid email address')
@@ -237,7 +301,9 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
         <p className="font-code" style={{ fontSize: 11, color: 'var(--ink-dim)', marginBottom: 12 }}>
           {mode === 'signin'
             ? 'Approvals and runbook uploads are signed with your operator identity and written to the audit trail.'
-            : 'Create a private team (you become its admin) or join one with an invite code.'}
+            : mode === 'reset'
+              ? 'Forgot your password? Ask a team admin for a one-time reset code (Settings > Members > RESET CODE), then set a new password here. If you are the only admin, the server owner can issue one with npm run reset-code.'
+              : 'Create a private team (you become its admin) or join one with an invite code.'}
         </p>
 
         {mode === 'signin' && demoEnabled && (
@@ -262,22 +328,37 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
             <Field id="reg-name" label="NAME" type="text" value={name} autoComplete="name" onChange={setName} />
           )}
           <Field id="login-email" label="EMAIL" type="email" value={email} autoComplete="username" onChange={setEmail} />
+          {mode === 'reset' && (
+            <Field id="reset-code" label="RESET CODE" type="text" value={resetCode} autoComplete="one-time-code" onChange={setResetCode} />
+          )}
           <Field
             id="login-password"
-            label="PASSWORD"
+            label={mode === 'reset' ? 'NEW PASSWORD' : 'PASSWORD'}
             type="password"
             value={password}
             autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             onChange={setPassword}
           />
-          {mode === 'register' && (
-            <Field id="reg-confirm" label="CONFIRM PASSWORD" type="password" value={confirm} autoComplete="new-password" onChange={setConfirm} />
+          {mode === 'signin' && (
+            <div style={{ textAlign: 'right', margin: '-4px 0 8px' }}>
+              <button
+                type="button"
+                className="font-code"
+                style={{ fontSize: 10, color: 'var(--accent, #209cee)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => switchMode('reset')}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
+          {(mode === 'register' || mode === 'reset') && (
+            <Field id="reg-confirm" label={mode === 'reset' ? 'CONFIRM NEW PASSWORD' : 'CONFIRM PASSWORD'} type="password" value={confirm} autoComplete="new-password" onChange={setConfirm} />
           )}
           {mode === 'register' && (
             <>
               <Field id="reg-team" label="TEAM NAME (NEW TEAM)" type="text" value={teamName} autoComplete="organization" onChange={setTeamName} />
               <Field id="reg-invite" label="OR INVITE CODE (JOIN A TEAM)" type="text" value={inviteCode} autoComplete="off" onChange={setInviteCode} />
-              <p className="font-code" style={{ fontSize: 10, color: '#6b6b6b', margin: '-2px 0 8px' }}>
+              <p className="font-code" style={{ fontSize: 10, color: 'var(--ink-faint)', margin: '-2px 0 8px' }}>
                 Each team gets its own incidents, runbooks, alert URLs and Slack. Leave both empty to start a team of your own.
               </p>
             </>
@@ -292,7 +373,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
               CANCEL
             </button>
             <button type="submit" className="btn btn-primary btn-xs font-display" style={{ fontSize: 8 }} disabled={busy}>
-              {busy ? 'WORKING...' : mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}
+              {busy ? 'WORKING...' : mode === 'signin' ? 'SIGN IN' : mode === 'reset' ? 'SET NEW PASSWORD' : 'CREATE ACCOUNT'}
             </button>
           </div>
         </form>

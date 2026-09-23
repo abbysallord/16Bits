@@ -129,6 +129,31 @@ export async function registerUser(
   return res.json()
 }
 
+// Forgot password: one-time code from a team admin (Settings -> Members) or the server owner
+export async function resetPassword(email: string, code: string, newPassword: string): Promise<{ token: string; user: User; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, newPassword })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const details = Array.isArray(err.issues) ? err.issues.map((i: { message: string }) => i.message).join('. ') : ''
+    throw new Error(details || err.error || 'Could not reset password')
+  }
+  return res.json()
+}
+
+export async function changePassword(token: string, currentPassword: string, newPassword: string): Promise<{ message: string; token: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword })
+  })
+  if (!res.ok) await throwApiError(res, 'Could not change password')
+  return res.json()
+}
+
 export async function fetchIncidents(): Promise<Incident[]> {
   const res = await fetch(`${API_BASE_URL}/api/incidents`, { headers: authHeaders() })
   if (!res.ok) throw new Error('Failed to fetch incidents')
@@ -317,7 +342,7 @@ export interface OrgSettings {
   alertUrls: { alertmanager: string; pagerduty: string; datadog: string; generic: string } | null
   slack: { configured: boolean; source: 'team' | 'server' | null; webhookPreview: string | null }
   groq: { ownKey: boolean; keyPreview: string | null }
-  members: Array<{ name: string; email?: string; role: string }>
+  members: Array<{ id?: string; name: string; email?: string; role: string }>
 }
 
 async function orgCall(path: string, token: string, init: RequestInit = {}): Promise<any> {
@@ -335,5 +360,7 @@ export const updateOrg = (token: string, body: { name?: string; slackWebhookUrl?
 export const testOrgSlack = (token: string): Promise<{ message: string }> => orgCall('/slack/test', token, { method: 'POST' })
 export const rotateAlertKey = (token: string): Promise<{ message: string; org: OrgSettings }> => orgCall('/rotate-alert-key', token, { method: 'POST' })
 export const rotateInvite = (token: string): Promise<{ message: string; org: OrgSettings }> => orgCall('/rotate-invite', token, { method: 'POST' })
+export const issueMemberResetCode = (token: string, userId: string): Promise<{ message: string; code: string; expiresAt: string; member: { name: string; email: string } }> =>
+  orgCall(`/members/${encodeURIComponent(userId)}/reset-code`, token, { method: 'POST' })
 export const joinTeam = (token: string, inviteCode: string): Promise<{ message: string; token: string; user: User }> =>
   orgCall('/join', token, { method: 'POST', body: JSON.stringify({ inviteCode }) })

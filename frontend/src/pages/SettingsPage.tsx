@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Zap, Copy, CheckCheck, ArrowLeft } from 'lucide-react'
-import { fetchOrg, updateOrg, testOrgSlack, rotateAlertKey, rotateInvite, joinTeam, UnauthorizedError } from '../services/api'
+import { fetchOrg, updateOrg, testOrgSlack, rotateAlertKey, rotateInvite, joinTeam, issueMemberResetCode, changePassword, UnauthorizedError } from '../services/api'
 import type { OrgSettings } from '../services/api'
-import { useAuth, AuthBadge } from '../auth'
+import { useAuth, AuthBadge, PasswordInput } from '../auth'
 
 // Team settings: connect the team's own Slack, copy its private alert URLs, invite teammates,
 // and optionally bring its own Groq key.
@@ -43,6 +43,10 @@ export default function SettingsPage() {
   const [slackUrl, setSlackUrl] = useState('')
   const [groqKey, setGroqKey] = useState('')
   const [joinCode, setJoinCode] = useState('')
+  const [issuedCode, setIssuedCode] = useState<{ name: string; email: string; code: string; expiresAt: string } | null>(null)
+  const [curPw, setCurPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [newPw2, setNewPw2] = useState('')
 
   const load = useCallback(async () => {
     if (!token) return
@@ -155,10 +159,39 @@ export default function SettingsPage() {
                 <div className="mt-3 font-code" style={{ fontSize: 11 }}>
                   <div className="font-arcade" style={{ fontSize: 8, marginBottom: 4 }}>MEMBERS ({org.members.length})</div>
                   {org.members.map((m) => (
-                    <div key={`${m.email}-${m.name}`}>
-                      {m.name} {m.email ? `(${m.email})` : ''} · {m.role}
+                    <div key={`${m.email}-${m.name}`} className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
+                      <span>
+                        {m.name} {m.email ? `(${m.email})` : ''} · {m.role}
+                      </span>
+                      {org.canEdit && m.id && m.email !== user.email && (
+                        <button
+                          type="button"
+                          className="nes-btn nes-btn-xs font-arcade"
+                          style={{ fontSize: 7 }}
+                          disabled={busy}
+                          title="Issue a one-time code this member can use to set a new password"
+                          onClick={() =>
+                            act(async (t) => {
+                              const r = await issueMemberResetCode(t, m.id!)
+                              setIssuedCode({ name: r.member.name, email: r.member.email, code: r.code, expiresAt: r.expiresAt })
+                              return { message: `Reset code issued for ${r.member.name}` }
+                            })
+                          }
+                        >
+                          RESET CODE
+                        </button>
+                      )}
                     </div>
                   ))}
+                  {issuedCode && (
+                    <div className="mt-2 p-2" style={{ border: '2px dashed #212529', backgroundColor: '#fffbe6' }}>
+                      <CopyRow label={`RESET CODE FOR ${issuedCode.name.toUpperCase()}`} value={issuedCode.code} />
+                      <p className="font-code" style={{ fontSize: 10, color: '#6b6b6b', margin: 0 }}>
+                        Send it to {issuedCode.email} privately. They click SIGN IN &gt; Forgot password? and set a new one. Works once, expires{' '}
+                        {new Date(issuedCode.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -260,14 +293,13 @@ export default function SettingsPage() {
                   {org.groq.ownKey ? ` Current: ${org.groq.keyPreview}` : ' Currently using the shared server key.'}
                 </p>
                 <div className="flex gap-2 mt-2">
-                  <input
-                    className="nes-input font-code flex-1"
+                  <PasswordInput
+                    className="nes-input font-code"
                     style={{ fontSize: 11 }}
-                    type="password"
                     placeholder="gsk_..."
                     value={groqKey}
-                    onChange={(e) => setGroqKey(e.target.value)}
-                    aria-label="Groq API key"
+                    onChange={setGroqKey}
+                    ariaLabel="Groq API key"
                     autoComplete="off"
                   />
                   <button
@@ -285,6 +317,38 @@ export default function SettingsPage() {
                     </button>
                   )}
                 </div>
+              </div>
+            )}
+
+            {!org.isDemo && (
+              <div className="nes-container with-title mt-4" style={box}>
+                <p className="title font-arcade" style={{ fontSize: 9 }}>CHANGE PASSWORD</p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (newPw.length < 6) return setStatus('[ERROR] New password must be at least 6 characters')
+                    if (newPw !== newPw2) return setStatus('[ERROR] New passwords do not match')
+                    act(async (t) => {
+                      const r = await changePassword(t, curPw, newPw)
+                      // Other sessions are signed out; keep this one with the fresh token
+                      if (r.token && user) adoptSession({ token: r.token, user })
+                      setCurPw('')
+                      setNewPw('')
+                      setNewPw2('')
+                      return { message: r.message }
+                    })
+                  }}
+                >
+                  <input type="text" name="username" autoComplete="username" value={user.email} readOnly hidden />
+                  <div className="flex flex-col gap-2">
+                    <PasswordInput value={curPw} onChange={setCurPw} ariaLabel="Current password" placeholder="current password" autoComplete="current-password" style={{ fontSize: 11 }} />
+                    <PasswordInput value={newPw} onChange={setNewPw} ariaLabel="New password" placeholder="new password (6+ characters)" autoComplete="new-password" style={{ fontSize: 11 }} />
+                    <PasswordInput value={newPw2} onChange={setNewPw2} ariaLabel="Confirm new password" placeholder="confirm new password" autoComplete="new-password" style={{ fontSize: 11 }} />
+                  </div>
+                  <button type="submit" className="nes-btn is-primary nes-btn-xs font-arcade mt-2" style={{ fontSize: 8 }} disabled={busy || !curPw || !newPw}>
+                    CHANGE PASSWORD
+                  </button>
+                </form>
               </div>
             )}
 

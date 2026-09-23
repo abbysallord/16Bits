@@ -5,6 +5,7 @@ import { AuthenticatedRequest, generateToken, requireAuth } from '../middleware/
 import { validate } from '../middleware/validate.js'
 import { DEMO_ORG_ID, getOrg, getOrgByInvite, isSlackWebhookUrl, maskSecret, rotateIngestKey, rotateInviteCode, runInOrg, slackUrlFor } from '../services/orgService.js'
 import { sendSlackTest } from '../services/slackService.js'
+import { issueResetCode } from '../services/passwordResetService.js'
 
 // Team settings: Slack webhook, alert URLs, invite code, optional Groq key. Signed-in members can read;
 // only team admins can change. The public demo team is read-only.
@@ -53,7 +54,7 @@ async function orgView(req: AuthenticatedRequest) {
       webhookPreview: canEdit ? maskSecret(org.slack_webhook_url) : null,
     },
     groq: { ownKey: Boolean(org.groq_api_key), keyPreview: canEdit ? maskSecret(org.groq_api_key) : null },
-    members: members.map((m) => ({ name: m.name, email: isDemo ? undefined : m.email, role: m.role })).slice(0, isDemo ? 0 : 100),
+    members: members.map((m) => ({ ...(canEdit ? { id: m.id } : {}), name: m.name, email: isDemo ? undefined : m.email, role: m.role })).slice(0, isDemo ? 0 : 100),
   }
 }
 
@@ -118,6 +119,26 @@ orgRouter.post('/rotate-alert-key', requireAuth, async (req: AuthenticatedReques
   res.json({ message: 'New alert URLs issued. Update Alertmanager/PagerDuty/Datadog; the old URLs stop working now.', org: await orgView(req) })
 })
 
+// Admin issues a one-time password reset code for a member of their own team (no email needed)
+orgRouter.post('/members/:userId/reset-code', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return
+  const member = await db.get<{ id: string; name: string; email: string }>('SELECT id, name, email FROM users WHERE id = ? AND org_id = ?', [
+    String(req.params.userId),
+    req.orgId
+  ])
+  if (!member) {
+    res.status(404).json({ error: 'No such member in your team' })
+    return
+  }
+  const { code, expiresAt } = await issueResetCode(member.id, req.user!.email)
+  res.json({
+    message: `Reset code for ${member.name}. Give it to them privately; it works once and expires at ${expiresAt}.`,
+    code,
+    expiresAt,
+    member: { name: member.name, email: member.email }
+  })
+})
+
 orgRouter.post('/rotate-invite', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!requireAdmin(req, res)) return
   await rotateInviteCode(req.orgId!)
@@ -137,7 +158,7 @@ orgRouter.post('/join', requireAuth, validate(z.object({ inviteCode: z.string().
     return
   }
   await db.run("UPDATE users SET org_id = ?, role = 'operator' WHERE id = ?", [target.id, req.user!.id])
-  const token = generateToken({ id: req.user!.id, email: req.user!.email, name: req.user!.name, role: 'operator', orgId: target.id })
+  const token = generateToken({ id: req.user!.id, email: req.user!.email, name: req.user!.name, role: 'operator', orgId: target.id, tv: req.user!.tv ?? 0 })
   res.json({
     message: `Joined ${target.name}`,
     token,

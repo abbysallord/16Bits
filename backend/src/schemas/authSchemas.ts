@@ -14,5 +14,16 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required')
 })
 
+export const resetPasswordSchema = z.object({
+  email: z.string().email('Invalid email address format'),
+  code: z.string().min(6, 'Enter the reset code').max(40),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters').max(200)
+})
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters').max(200)
+})
+
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
-import { DEMO_ORG_ID, getUserOrgId } from '../services/orgService.js'
+import { DEMO_ORG_ID } from '../services/orgService.js'
+import { db } from '../db/database.js'
 import { demoAccountEnabled } from '../config/demo.js'
 
 function getJwtSecret(): string {
@@ -20,6 +21,8 @@ export interface TokenUser {
   name: string
   role: string
   orgId?: string
+  // Session version: bumped on password reset/change so older tokens stop working
+  tv?: number
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -47,12 +50,6 @@ function bearer(req: Request): string | null | undefined {
   return h.slice(7).trim()
 }
 
-// Tokens issued before orgs existed carry no orgId; look it up so old sessions keep working
-async function orgIdFor(user: TokenUser): Promise<string | null> {
-  if (user.orgId) return user.orgId
-  return getUserOrgId(user.id)
-}
-
 export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   const token = bearer(req)
   if (!token) {
@@ -64,9 +61,17 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
     res.status(401).json({ error: 'Unauthorized: Invalid or expired token' })
     return
   }
-  const orgId = await orgIdFor(decoded)
-  if (!orgId) {
+  // One lookup per request: the account must still exist, and the token must carry the current session
+  // version (a password reset or change bumps it, which signs out every older session).
+  // Tokens issued before orgs existed carry no orgId; the row supplies it so old sessions keep working.
+  const row = await db.get<{ org_id: string | null; token_version: number | null }>('SELECT org_id, token_version FROM users WHERE id = ?', [decoded.id])
+  const orgId = decoded.orgId || row?.org_id || null
+  if (!row || !orgId) {
     res.status(401).json({ error: 'Unauthorized: account no longer exists' })
+    return
+  }
+  if ((decoded.tv ?? 0) !== Number(row.token_version ?? 0)) {
+    res.status(401).json({ error: 'Session expired because the password was changed. Please sign in again.' })
     return
   }
   req.user = { ...decoded, orgId }

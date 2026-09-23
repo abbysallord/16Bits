@@ -160,6 +160,7 @@ Every account belongs to one team. A team's incidents, uploaded runbooks, alert 
 - **Your own AI quota:** Settings → AI QUOTA takes an optional Groq API key so your team's runs use your own free quota instead of the shared server key.
 - **Public demo team:** the demo account, signed-out visitors, the legacy `/api/webhooks/<source>` URLs and the CLI without credentials all use the shared read-only demo team. With `DEMO_ACCOUNT=off` signed-out visitors see nothing.
 - **CLI:** set `OMNIOPS_TOKEN` (or `OMNIOPS_EMAIL` + `OMNIOPS_PASSWORD`) and `omniops` runs land in your team.
+- **Forgot password (no email needed):** a team admin clicks RESET CODE next to the member in Settings → MEMBERS and passes the one-time code on privately. The member uses SIGN IN → Forgot password? to set a new password. Codes are stored hashed, work once and expire after 30 minutes (`RESET_CODE_TTL_MINUTES`). If a team's only admin is locked out, the server owner runs `cd backend && DATABASE_URL=... npm run reset-code -- <email>`. Signed-in users can change their password in Settings → CHANGE PASSWORD. The public demo account cannot be reset or changed.
 - Existing accounts created before teams existed were each moved into their own team; use an invite code to join a teammate's.
 
 ---
@@ -181,6 +182,9 @@ Every account belongs to one team. A team's incidents, uploaded runbooks, alert 
 
 - `GET /api/health` — Backend status, SQLite state, active AI provider (`groq`, `gemini`, or `mock`) and model.
 - `POST /api/auth/login` — Authenticates an operator and returns a JWT.
+- `POST /api/auth/reset-password` — `{email, code, newPassword}`: redeems a one-time reset code and returns a JWT. Wrong, used or expired codes all return 400.
+- 🔒 `POST /api/auth/change-password` — `{currentPassword, newPassword}`.
+- 🔒 `POST /api/org/members/:userId/reset-code` — Team admin only: issues a one-time reset code for a member of the same team.
 - `POST /api/auth/register` — Creates an account. With `teamName` (or nothing) it creates a new team and you are its admin; with `inviteCode` you join that team as an operator.
 - `GET /api/auth/me` 🔒 — Returns the signed-in operator and team.
 - `GET /api/org` 🔒 — Team settings: name, members, invite code, alert URLs, Slack status.
