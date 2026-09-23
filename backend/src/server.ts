@@ -76,6 +76,19 @@ async function seedDemoData() {
     )
     console.log('[Seed] Demo admin (admin@16bits.io / admin123) and benchmark incident initialized.')
   }
+
+  // Purge any vulgarities or non-enterprise spam records
+  try {
+    db.prepare(`
+      DELETE FROM incidents 
+      WHERE title LIKE '%fuck%' 
+         OR title LIKE '%friend%' 
+         OR title LIKE '%boys%' 
+         OR title LIKE '%dating%'
+         OR title LIKE '%sex%'
+         OR length(title) < 4
+    `).run()
+  } catch {}
 }
 
 seedDemoData().then(() => {

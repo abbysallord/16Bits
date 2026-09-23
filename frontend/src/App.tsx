@@ -140,7 +140,12 @@ function ConsoleView() {
   const loadIncidents = async () => {
     try {
       const data = await fetchIncidents()
-      setIncidents(data)
+      const BANNED = ['fuck', 'shit', 'bitch', 'ass', 'boy', 'friend', 'dating', 'sex']
+      const clean = data.filter((inc) => {
+        const text = (inc.title + ' ' + (inc.description || '')).toLowerCase()
+        return !BANNED.some((b) => text.includes(b)) && (inc.title || '').trim().length >= 8
+      })
+      setIncidents(clean)
     } catch {
       setIncidents([])
     }
@@ -711,12 +716,27 @@ function ConsoleView() {
 
                   {/* incident queue */}
                   <div className="nes-container with-title" style={{ backgroundColor: '#fff' }}>
-                    <p className="title font-arcade" style={{ fontSize: 9 }}>
-                      Incident Queue ({pending.length + incidents.length})
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="title font-arcade" style={{ fontSize: 9 }}>
+                        Incident Queue ({Math.min(pending.length + incidents.length, 6)})
+                      </p>
+                      {(pending.length > 0 || incidents.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPending([])
+                            setIncidents([])
+                          }}
+                          className="font-code text-xs px-2 py-0.5 border border-neutral-300 hover:bg-neutral-100 text-neutral-600 cursor-pointer"
+                          style={{ fontSize: 9 }}
+                        >
+                          [CLEAR QUEUE]
+                        </button>
+                      )}
+                    </div>
                     {pending.length === 0 && incidents.length === 0 ? (
                       <p className="font-code text-neutral-500" style={{ fontSize: 10 }}>
-                        No incidents yet. Trigger a swarm run to populate the queue.
+                        Queue empty. Select a demo scenario above or trigger a custom alert to dispatch the swarm.
                       </p>
                     ) : (
                       <table className="nes-table is-bordered is-centered w-full">
@@ -727,19 +747,14 @@ function ConsoleView() {
                           </tr>
                         </thead>
                         <tbody>
-                          {incidents.map((inc) => (
-                            <tr key={inc.id}>
-                              <td className="font-code" style={{ fontSize: 10 }}>{inc.title}</td>
-                              <td className="font-code" style={{ fontSize: 10, color: inc.status === 'RESOLVED' ? '#92cc41' : '#f7d51d' }}>
-                                {inc.status}
-                              </td>
-                            </tr>
-                          ))}
-                          {pending.map((p) => (
-                            <tr key={p.id}>
-                              <td className="font-code" style={{ fontSize: 10 }}>{p.title}</td>
-                              <td className="font-code" style={{ fontSize: 10, color: p.status === 'RESOLVED' ? '#92cc41' : '#f7d51d' }}>
-                                {p.status}
+                          {[
+                            ...pending,
+                            ...incidents.filter((inc) => !pending.some((p) => p.title === inc.title)),
+                          ].slice(0, 6).map((item) => (
+                            <tr key={item.id}>
+                              <td className="font-code text-left" style={{ fontSize: 10 }}>{item.title}</td>
+                              <td className="font-code" style={{ fontSize: 10, color: item.status === 'RESOLVED' ? '#92cc41' : '#f7d51d' }}>
+                                {item.status}
                               </td>
                             </tr>
                           ))}

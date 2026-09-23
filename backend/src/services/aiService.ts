@@ -14,9 +14,8 @@ export interface AIProviderInfo {
 // - Gemini: gemini-1.5-* models are shut down (https://ai.google.dev/gemini-api/docs/changelog)
 const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b'
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
-// Model ids checked on https://console.groq.com/docs/models
-const GROQ_FALLBACK_MODELS = ['llama3-8b-8192', 'gemma2-9b-it', 'mixtral-8x7b-32768']
-const MAX_OUTPUT_TOKENS = Math.min(Number(process.env.AI_MAX_TOKENS || 500), 500)
+const GROQ_FALLBACK_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768']
+const MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_TOKENS || 2048)
 
 // Some open reasoning models emit <think>...</think> blocks; never show those to users
 function stripReasoning(text: string): string {

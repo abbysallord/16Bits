@@ -7,12 +7,19 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js'
 
 export const incidentRouter = Router()
 
-// List all incidents
+// List all incidents (filtered for clean enterprise records)
 incidentRouter.get('/', (req: Request, res: Response): void => {
   const incidents = db.prepare(`
-    SELECT * FROM incidents ORDER BY created_at DESC
-  `).all()
-  res.json({ incidents })
+    SELECT * FROM incidents ORDER BY created_at DESC LIMIT 30
+  `).all() as any[]
+  
+  const BANNED_PATTERNS = ['fuck', 'shit', 'bitch', 'ass', 'boy', 'friend', 'dating', 'sex']
+  const cleanIncidents = incidents.filter(inc => {
+    const text = ((inc.title || '') + ' ' + (inc.description || '')).toLowerCase()
+    return !BANNED_PATTERNS.some(p => text.includes(p)) && (inc.title || '').length >= 5
+  })
+
+  res.json({ incidents: cleanIncidents })
 })
 
 // Get incident details with full agent execution audit trail
