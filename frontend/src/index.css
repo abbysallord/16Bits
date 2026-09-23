@@ -1,57 +1,47 @@
 @import "tailwindcss";
-@import "nes.css/css/nes.min.css";
 
 @layer base {
   body {
-    background-color: #f8f8f8;
-    color: #212529;
     font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  }
+
+  .font-arcade {
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  .font-mono-code {
+    font-family: 'JetBrains Mono', monospace;
   }
 }
 
-/* Typography helpers */
-.font-arcade {
-  font-family: 'Press Start 2P', monospace;
+/* Neobrutalist & Retro styling utilities */
+.neo-border {
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px #000000;
 }
 
-.font-code {
-  font-family: 'JetBrains Mono', monospace;
+.neo-border-emerald {
+  border: 2px solid #10b981;
+  box-shadow: 4px 4px 0px rgba(16, 185, 129, 0.4);
 }
 
-/* NES sketch helpers */
-.nes-container-tight {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
+.neo-border-dark {
+  border: 2px solid #262626;
+  box-shadow: 4px 4px 0px #171717;
 }
 
-.nes-btn-sm {
-  padding: 6px 10px;
-  font-size: 10px;
-}
-
-.nes-btn-xs {
-  padding: 4px 8px;
-  font-size: 9px;
-}
-
-/* Blinking terminal cursor */
-@keyframes nes-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-
-.blink {
-  animation: nes-blink 1s step-end infinite;
-}
-
-/* Pixel scrollbar */
+/* Subtle modern scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #d4d4d4;
+  background: #0a0a0a;
 }
 ::-webkit-scrollbar-thumb {
-  background: #212529;
+  background: #262626;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
 }
