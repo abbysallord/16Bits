@@ -8,10 +8,10 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js'
 export const incidentRouter = Router()
 
 // List all incidents (filtered for clean enterprise records)
-incidentRouter.get('/', (req: Request, res: Response): void => {
-  const incidents = db.prepare(`
+incidentRouter.get('/', async (req: Request, res: Response): Promise<void> => {
+  const incidents = await db.all(`
     SELECT * FROM incidents ORDER BY created_at DESC LIMIT 30
-  `).all() as any[]
+  `) as any[]
   
   const BANNED_PATTERNS = ['fuck', 'shit', 'bitch', 'ass', 'boy', 'friend', 'dating', 'sex']
   const cleanIncidents = incidents.filter(inc => {
@@ -23,16 +23,16 @@ incidentRouter.get('/', (req: Request, res: Response): void => {
 })
 
 // Get incident details with full agent execution audit trail
-incidentRouter.get('/:id', (req: Request, res: Response): void => {
-  const incident = db.prepare('SELECT * FROM incidents WHERE id = ?').get(req.params.id) as any
+incidentRouter.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  const incident = await db.get('SELECT * FROM incidents WHERE id = ?', [req.params.id]) as any
   if (!incident) {
     res.status(404).json({ error: 'Incident not found' })
     return
   }
 
-  const logs = db.prepare(`
+  const logs = await db.all(`
     SELECT * FROM agent_logs WHERE incident_id = ? ORDER BY step_number ASC
-  `).all(req.params.id)
+  `, [req.params.id])
 
   res.json({
     incident,
@@ -44,17 +44,17 @@ incidentRouter.get('/:id', (req: Request, res: Response): void => {
 })
 
 // Create incident
-incidentRouter.post('/', requireAuth, validate(createIncidentSchema), (req: AuthenticatedRequest, res: Response): void => {
+incidentRouter.post('/', requireAuth, validate(createIncidentSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { title, description, priority, category } = req.body
   const id = crypto.randomUUID()
   const userId = req.user?.id || null
 
-  db.prepare(`
+  await db.run(`
     INSERT INTO incidents (id, title, description, priority, category, status, user_id)
     VALUES (?, ?, ?, ?, ?, 'PENDING', ?)
-  `).run(id, title, description, priority, category || 'System Incident', userId)
+  `, [id, title, description, priority, category || 'System Incident', userId])
 
-  const created = db.prepare('SELECT * FROM incidents WHERE id = ?').get(id)
+  const created = await db.get('SELECT * FROM incidents WHERE id = ?', [id])
   res.status(201).json({
     message: 'Incident created successfully',
     incident: created

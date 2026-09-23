@@ -805,7 +805,7 @@ function ConsoleView() {
                     <li>- React 19 + Vite</li>
                     <li>- React Router</li>
                     <li>- Express.js + JWT (Active)</li>
-                    <li>- SQLite WAL Mode (Active)</li>
+                    <li>- {health?.database?.startsWith('Postgres') ? 'Postgres (Active)' : 'SQLite WAL Mode (Active)'}</li>
                     <li>- LangSmith Tracing (Active)</li>
                     <li>- npm: omniops@1.0.2</li>
                   </ul>

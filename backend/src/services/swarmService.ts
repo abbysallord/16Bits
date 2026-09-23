@@ -103,18 +103,16 @@ export class SwarmService {
 
       // Save to SQLite
       const logId = crypto.randomUUID()
-      db.prepare(`
+      await db.run(`
         INSERT INTO agent_logs (id, incident_id, agent_name, step_number, thought, action, data_payload)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        logId,
+      `, [logId,
         incidentId,
         agentName,
         stepNumber,
         thought,
         action,
-        dataPayload ? JSON.stringify(dataPayload) : null
-      )
+        dataPayload ? JSON.stringify(dataPayload) : null])
 
       // Post child span to LangSmith
       if (runTree) {
@@ -137,7 +135,7 @@ export class SwarmService {
     }
 
     // Update status to ANALYZING in DB
-    db.prepare(`UPDATE incidents SET status = 'ANALYZING', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(incidentId)
+    await db.run(`UPDATE incidents SET status = 'ANALYZING', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [incidentId])
 
     // Log Active Input Guardrail if secrets redacted or injections neutralized
     if (sanitized.redactionsCount > 0 || sanitized.injectionsNeutralized > 0) {
@@ -335,11 +333,11 @@ Keep it crisp, professional, and ready for immediate deployment.
     )
 
     // Save final resolution in DB
-    db.prepare(`
+    await db.run(`
       UPDATE incidents
       SET status = ?, resolution = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(finalStatus, finalResolution, incidentId)
+    `, [finalStatus, finalResolution, incidentId])
 
     // Close LangSmith parent run
     let langsmithTraceId: string | null = null
@@ -389,22 +387,23 @@ Keep it crisp, professional, and ready for immediate deployment.
     }
   }
 
-  public approveIncident(incidentId: string, approvedBy: string): void {
-    db.prepare(`
+  // Atomically moves AWAITING_APPROVAL -> RESOLVED. Returns false if another operator got there first.
+  public async approveIncident(incidentId: string, approvedBy: string): Promise<boolean> {
+    const { changes } = await db.run(`
       UPDATE incidents
       SET status = 'RESOLVED', updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(incidentId)
+      WHERE id = ? AND status = 'AWAITING_APPROVAL'
+    `, [incidentId])
+    if (changes === 0) return false
 
     const logId = crypto.randomUUID()
-    db.prepare(`
+    await db.run(`
       INSERT INTO agent_logs (id, incident_id, agent_name, step_number, thought, action)
-      VALUES (?, ?, 'Human Operator', 5, ?, 'Remediation executed and incident closed.')
-    `).run(
-      logId,
+      VALUES (?, ?, 'Human Operator', 5, ?, 'Remediation plan approved and incident closed.')
+    `, [logId,
       incidentId,
-      `Human Operator (${approvedBy}) digitally authorized remediation plan after inspecting agent consensus.`
-    )
+      `Human Operator (${approvedBy}) approved the remediation plan after reviewing the agent consensus.`])
+    return true
   }
 }
 

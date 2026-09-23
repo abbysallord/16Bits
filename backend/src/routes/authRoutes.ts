@@ -15,7 +15,7 @@ authRouter.post('/register', validate(registerSchema), async (req: Request, res:
   const role = 'operator'
 
   // Check if user already exists
-  const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
+  const existingUser = await db.get('SELECT id FROM users WHERE email = ?', [email])
   if (existingUser) {
     res.status(409).json({ error: 'User with this email already exists' })
     return
@@ -25,10 +25,10 @@ authRouter.post('/register', validate(registerSchema), async (req: Request, res:
   const passwordHash = await bcrypt.hash(password, salt)
   const userId = crypto.randomUUID()
 
-  db.prepare(`
+  await db.run(`
     INSERT INTO users (id, email, password_hash, name, role)
     VALUES (?, ?, ?, ?, ?)
-  `).run(userId, email, passwordHash, name, role)
+  `, [userId, email, passwordHash, name, role])
 
   const token = generateToken({ id: userId, email, name, role: role })
 
@@ -43,7 +43,7 @@ authRouter.post('/register', validate(registerSchema), async (req: Request, res:
 authRouter.post('/login', validate(loginSchema), async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any
+  const user = await db.get('SELECT * FROM users WHERE email = ?', [email]) as any
   if (!user) {
     res.status(401).json({ error: 'Invalid email or password' })
     return

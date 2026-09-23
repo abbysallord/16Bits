@@ -45,10 +45,10 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
     const validPriority = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(priority) ? priority : 'HIGH'
 
     const incidentId = crypto.randomUUID()
-    db.prepare(`
+    await db.run(`
       INSERT INTO incidents (id, title, description, priority, category, status)
       VALUES (?, ?, ?, ?, 'External Webhook', 'PENDING')
-    `).run(incidentId, title, description, validPriority)
+    `, [incidentId, title, description, validPriority])
 
     // Execute swarm in background or synchronously
     const result = await swarmService.executeSwarm(
@@ -83,7 +83,7 @@ agentRouter.post('/approve', requireAuth, async (req: AuthenticatedRequest, res:
     return
   }
 
-  const existing = db.prepare('SELECT status FROM incidents WHERE id = ?').get(incidentId) as { status: string } | undefined
+  const existing = await db.get('SELECT status FROM incidents WHERE id = ?', [incidentId]) as { status: string } | undefined
   if (!existing) {
     res.status(404).json({ error: 'Incident not found' })
     return
@@ -96,8 +96,12 @@ agentRouter.post('/approve', requireAuth, async (req: AuthenticatedRequest, res:
   const approvedBy = `${req.user!.name} (${req.user!.email})`
 
   try {
-    swarmService.approveIncident(incidentId, approvedBy)
-    const updated = db.prepare('SELECT * FROM incidents WHERE id = ?').get(incidentId)
+    const approved = await swarmService.approveIncident(incidentId, approvedBy)
+    if (!approved) {
+      res.status(409).json({ error: 'Incident is no longer awaiting approval' })
+      return
+    }
+    const updated = await db.get('SELECT * FROM incidents WHERE id = ?', [incidentId])
     res.json({
       message: `Remediation plan authorized by authenticated operator: ${approvedBy}. Status updated to RESOLVED.`,
       incident: updated,
@@ -116,10 +120,10 @@ agentRouter.post('/execute', validate(runAgentSchema), async (req: Request, res:
 
     if (!incidentId) {
       incidentId = crypto.randomUUID()
-      db.prepare(`
+      await db.run(`
         INSERT INTO incidents (id, title, description, priority, category, status)
         VALUES (?, ?, ?, ?, ?, 'PENDING')
-      `).run(incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow')
+      `, [incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow'])
     }
 
     const result = await swarmService.executeSwarm(
@@ -153,10 +157,10 @@ agentRouter.post('/stream', validate(runAgentSchema), async (req: Request, res: 
 
     if (!incidentId) {
       incidentId = crypto.randomUUID()
-      db.prepare(`
+      await db.run(`
         INSERT INTO incidents (id, title, description, priority, category, status)
         VALUES (?, ?, ?, ?, ?, 'PENDING')
-      `).run(incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow')
+      `, [incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow'])
     }
 
     res.write(`data: ${JSON.stringify({ type: 'INIT', incidentId, title })}\n\n`)

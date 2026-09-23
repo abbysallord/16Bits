@@ -51,7 +51,7 @@ async function runTests() {
   // TEST 1: Health Check
   try {
     const { status, data } = await request('/api/health')
-    const passed = status === 200 && data.status === 'ok' && data.database.includes('SQLite')
+    const passed = status === 200 && data.status === 'ok' && /SQLite|Postgres/.test(data.database)
     recordTest(
       '1. Health Check Endpoint (/api/health)',
       passed,
