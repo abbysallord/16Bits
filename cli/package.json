@@ -1,13 +1,19 @@
 {
-  "name": "16bits-ops",
+  "name": "omniops",
   "version": "1.0.0",
-  "description": "Autonomous site reliability and incident response swarm for production systems",
+  "description": "Autonomous site reliability and incident response swarm for enterprise production systems",
   "type": "module",
+  "main": "omniops.js",
   "bin": {
-    "omniops": "./omniops.js",
-    "16bits": "./omniops.js"
+    "omniops": "omniops.js",
+    "16bits": "omniops.js"
   },
+  "files": [
+    "omniops.js",
+    "README.md"
+  ],
   "keywords": [
+    "omniops",
     "sre",
     "incident-response",
     "agentic-ai",
@@ -15,13 +21,14 @@
     "langsmith",
     "devops",
     "observability",
+    "guardrails",
     "production-safe"
   ],
   "author": "16Bits Team",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abbysallord/16Bits.git"
+    "url": "git+https://github.com/abbysallord/16Bits.git"
   },
   "bugs": {
     "url": "https://github.com/abbysallord/16Bits/issues"
