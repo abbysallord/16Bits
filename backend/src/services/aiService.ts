@@ -77,22 +77,26 @@ class AIService {
 
     // 2. Try Groq LPU high-speed inference fallback
     if (this.groqClient) {
-      try {
-        const messages: Array<{ role: 'system' | 'user'; content: string }> = []
-        if (systemInstruction) {
-          messages.push({ role: 'system', content: systemInstruction })
-        }
-        messages.push({ role: 'user', content: prompt })
+      const groqModels = [process.env.DEFAULT_MODEL || 'llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+      for (const model of groqModels) {
+        try {
+          const messages: Array<{ role: 'system' | 'user'; content: string }> = []
+          if (systemInstruction) {
+            messages.push({ role: 'system', content: systemInstruction })
+          }
+          messages.push({ role: 'user', content: prompt })
 
-        const res = await this.groqClient.chat.completions.create({
-          model: process.env.DEFAULT_MODEL || 'qwen/qwen3.8-27b',
-          messages,
-          temperature: 0.1,
-          max_tokens: 450,
-        })
-        return res.choices[0]?.message?.content || ''
-      } catch (err: any) {
-        console.error(`[AIService] Groq call failed: ${err.message}`)
+          const res = await this.groqClient.chat.completions.create({
+            model,
+            messages,
+            temperature: 0.1,
+            max_tokens: 450,
+          })
+          const content = res.choices[0]?.message?.content
+          if (content) return content
+        } catch (err: any) {
+          console.warn(`[AIService] Groq model (${model}) notice: ${err.message}`)
+        }
       }
     }
 
