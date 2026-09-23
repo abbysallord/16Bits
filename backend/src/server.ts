@@ -57,13 +57,16 @@ app.use('/api/auth', authRouter)
 app.use('/api/incidents', incidentRouter)
 app.use('/api/agents', agentRouter)
 
-// Webhook Aliases: supports both /api/agents/webhook/alert and /api/webhooks/alerts
+// Webhook aliases: /api/webhooks/alert(s) (auto-detect) and /api/webhooks/{alertmanager,pagerduty,datadog}
 app.use('/api/webhooks', (req, res, next) => {
-  if (req.url === '/alerts' || req.url === '/alert' || req.url === '/alerts/' || req.url === '/alert/') {
-    req.url = '/webhook/alert'
-    return agentRouter(req, res, next)
-  }
-  next()
+  const m = req.path.match(/^\/(alerts?|alertmanager|prometheus|pagerduty|datadog)\/?$/)
+  if (!m) return next()
+  const source = m[1].startsWith('alert') && m[1] !== 'alertmanager' ? '' : m[1]
+  // Express 4 parses req.query once, so set the hint on the parsed object as well as the URL
+  if (source) (req as any).query = { ...req.query, source }
+  const qs = new URLSearchParams(req.query as Record<string, string>).toString()
+  req.url = `/webhook/alert${qs ? `?${qs}` : ''}`
+  return agentRouter(req, res, next)
 })
 
 

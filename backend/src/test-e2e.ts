@@ -207,6 +207,44 @@ async function runTests() {
     recordTest('9. External Webhook Alert Ingestion', false, err.message)
   }
 
+  // TEST 9b: Native monitoring payloads (Alertmanager / PagerDuty / Datadog), dedupe and resolved handling
+  try {
+    const groupKey = `{}:{alertname="PostgresConnectionsHigh-${Date.now()}"}`
+    const amPayload = (status: string) => ({
+      version: '4', groupKey, status, receiver: 'omniops', externalURL: 'http://alertmanager:9093',
+      commonLabels: { alertname: 'PostgresConnectionsHigh', severity: 'critical', service: 'payments-db' },
+      commonAnnotations: { summary: 'Primary Postgres at 97% of max_connections' },
+      alerts: [{ status, labels: { alertname: 'PostgresConnectionsHigh', severity: 'critical', instance: 'pg-primary-01' },
+        annotations: { description: 'pg_stat_activity count 485/500 for 5m' }, startsAt: new Date().toISOString() }]
+    })
+    const am1 = await request('/api/agents/webhook/alert', { method: 'POST', body: amPayload('firing') })
+    const am2 = await request('/api/webhooks/alertmanager', { method: 'POST', body: amPayload('firing') })
+    const amResolved = await request('/api/agents/webhook/alert', { method: 'POST', body: amPayload('resolved') })
+    const pd = await request('/api/agents/webhook/alert', {
+      method: 'POST',
+      body: { event: { id: `01E${Date.now()}`, event_type: 'incident.triggered', resource_type: 'incident', occurred_at: new Date().toISOString(),
+        data: { id: `Q${Date.now()}`, type: 'incident', number: 42, title: 'Checkout API p99 latency above 3s', status: 'triggered', urgency: 'high',
+          html_url: 'https://example.pagerduty.com/incidents/Q1', service: { summary: 'checkout-api' } } } }
+    })
+    const dd = await request('/api/agents/webhook/alert', {
+      method: 'POST',
+      body: { title: '[Recovered] Redis memory high', body: 'Recovered', alert_transition: 'Recovered', alert_type: 'success', aggreg_key: `dd-${Date.now()}` }
+    })
+    const passed =
+      am1.status === 202 && am1.data.source === 'alertmanager' && am1.data.priority === 'CRITICAL' && Boolean(am1.data.incidentId) &&
+      am2.status === 202 && am2.data.duplicate === true && am2.data.incidentId === am1.data.incidentId &&
+      amResolved.status === 202 && amResolved.data.ignored === true &&
+      pd.status === 202 && pd.data.source === 'pagerduty' && pd.data.priority === 'CRITICAL' &&
+      dd.status === 202 && dd.data.source === 'datadog' && dd.data.ignored === true
+    recordTest(
+      '9b. Native Alert Formats: Alertmanager, PagerDuty, Datadog (+ dedupe, resolved)',
+      passed,
+      `AM: ${am1.status}/${am1.data.priority}, repeat duplicate=${am2.data.duplicate}, resolved ignored=${amResolved.data.ignored}; PD: ${pd.status}/${pd.data.source}/${pd.data.priority}; DD recovered ignored=${dd.data.ignored}`
+    )
+  } catch (err: any) {
+    recordTest('9b. Native Alert Formats', false, err.message)
+  }
+
   // TEST 4b: Self-registration creates an operator (client-supplied role is ignored)
   try {
     const email = `e2e-${Date.now()}@16bits.io`

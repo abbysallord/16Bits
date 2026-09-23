@@ -5,6 +5,7 @@ import { swarmService } from '../services/swarmService.js'
 import { runbookService } from '../services/runbookService.js'
 import { runAgentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
+import { normalizeAlert, webhookAuthorized } from '../services/alertIntake.js'
 import { AuthenticatedRequest, requireAuth, verifyToken } from '../middleware/auth.js'
 
 export const agentRouter = Router()
@@ -30,37 +31,65 @@ agentRouter.post('/runbooks', requireAuth, (req: AuthenticatedRequest, res: Resp
   }
 })
 
-// Real Ingestion Webhook for External Alerts / curl testing
-// If WEBHOOK_SECRET is set, callers must send it in the x-webhook-secret header
+// Alert ingestion webhook. Accepts Prometheus Alertmanager, PagerDuty V3 and Datadog payloads as-is
+// (auto-detected, or forced with ?source=alertmanager|pagerduty|datadog), plus a generic JSON shape.
+// If WEBHOOK_SECRET is set, send it as x-webhook-secret, Authorization: Bearer, or ?token=.
 agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<void> => {
-  const webhookSecret = process.env.WEBHOOK_SECRET
-  if (webhookSecret && req.header('x-webhook-secret') !== webhookSecret) {
-    res.status(401).json({ error: 'Invalid or missing x-webhook-secret header' })
+  if (!webhookAuthorized(req)) {
+    res.status(401).json({ error: 'Invalid or missing webhook secret (x-webhook-secret header, Bearer token, or ?token=)' })
     return
   }
-  try {
-    const title = req.body.title || req.body.service || 'Production Alert Triggered'
-    const description = req.body.description || req.body.error || req.body.message || JSON.stringify(req.body)
-    const priority = (req.body.priority || req.body.severity || 'HIGH').toUpperCase()
-    const validPriority = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(priority) ? priority : 'HIGH'
 
-    const incidentId = crypto.randomUUID()
-    await db.run(`
-      INSERT INTO incidents (id, title, description, priority, category, status)
-      VALUES (?, ?, ?, ?, 'External Webhook', 'PENDING')
-    `, [incidentId, title, description, validPriority])
+  const alert = normalizeAlert(req.body, typeof req.query.source === 'string' ? req.query.source : undefined)
 
-    // Execute swarm in background or synchronously
-    const result = await swarmService.executeSwarm(
-      incidentId,
-      title,
-      description,
-      validPriority as any,
-      'External Webhook'
+  if (alert.resolved) {
+    res.status(202).json({ message: `Resolved/non-trigger ${alert.source} notification acknowledged; no swarm run needed`, source: alert.source, ignored: true })
+    return
+  }
+
+  // Monitoring tools re-send the same alert (repeat_interval, retries). Don't re-run the swarm for an
+  // alert that already has an open incident.
+  if (alert.externalRef) {
+    const open = await db.get<{ id: string; status: string }>(
+      `SELECT id, status FROM incidents WHERE external_ref = ? AND status NOT IN ('RESOLVED', 'FAILED') ORDER BY created_at DESC LIMIT 1`,
+      [alert.externalRef]
     )
+    if (open) {
+      res.status(202).json({ message: 'Duplicate alert: incident already open', source: alert.source, incidentId: open.id, status: open.status, duplicate: true })
+      return
+    }
+  }
 
+  const incidentId = crypto.randomUUID()
+  await db.run(`
+    INSERT INTO incidents (id, title, description, priority, category, status, source, external_ref)
+    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)
+  `, [incidentId, alert.title, alert.description, alert.priority, alert.category, alert.source, alert.externalRef])
+
+  const run = () => swarmService.executeSwarm(incidentId, alert.title, alert.description, alert.priority, alert.category)
+
+  // Monitoring tools expect a fast 2xx and retry on timeouts, so their payloads are processed in the
+  // background. Generic/curl callers get the full result back (add ?async=1 to skip waiting).
+  if (alert.source !== 'generic' || req.query.async === '1') {
+    run().catch(async (err) => {
+      console.error(`[Webhook] Swarm failed for ${incidentId}:`, err)
+      await db.run(`UPDATE incidents SET status = 'FAILED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [incidentId]).catch(() => {})
+    })
+    res.status(202).json({
+      message: `Alert accepted from ${alert.source}; swarm triage started`,
+      source: alert.source,
+      incidentId,
+      priority: alert.priority,
+      status: 'ANALYZING'
+    })
+    return
+  }
+
+  try {
+    const result = await run()
     res.status(202).json({
       message: 'Alert ingested and processed by 16Bits OmniOps Swarm',
+      source: alert.source,
       incidentId,
       status: result.status,
       executionDurationMs: result.executionDurationMs,
@@ -70,7 +99,8 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
     })
   } catch (err: any) {
     console.error('[Webhook Error]:', err)
-    res.status(500).json({ error: err.message || 'Webhook processing failed' })
+    await db.run(`UPDATE incidents SET status = 'FAILED', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [incidentId]).catch(() => {})
+    res.status(500).json({ error: err.message || 'Webhook processing failed', incidentId })
   }
 })
 

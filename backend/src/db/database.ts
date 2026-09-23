@@ -38,6 +38,8 @@ const SQLITE_SCHEMA = `
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ANALYZING', 'AWAITING_APPROVAL', 'RESOLVED', 'FAILED')),
     resolution TEXT,
     user_id TEXT,
+    source TEXT,
+    external_ref TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id)
@@ -75,6 +77,8 @@ const POSTGRES_SCHEMA = `
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ANALYZING', 'AWAITING_APPROVAL', 'RESOLVED', 'FAILED')),
     resolution TEXT,
     user_id TEXT REFERENCES users(id),
+    source TEXT,
+    external_ref TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );
@@ -92,6 +96,9 @@ const POSTGRES_SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_agent_logs_incident ON agent_logs(incident_id, step_number);
   CREATE INDEX IF NOT EXISTS idx_incidents_created ON incidents(created_at DESC);
+  ALTER TABLE incidents ADD COLUMN IF NOT EXISTS source TEXT;
+  ALTER TABLE incidents ADD COLUMN IF NOT EXISTS external_ref TEXT;
+  CREATE INDEX IF NOT EXISTS idx_incidents_external_ref ON incidents(external_ref);
 `
 
 // Rewrite `?` placeholders to $1..$n, skipping anything inside single-quoted SQL strings
@@ -173,6 +180,11 @@ function createSqliteDriver(): Driver {
     },
     async init() {
       sqlite.exec(SQLITE_SCHEMA)
+      // Upgrade databases created before alert intake added these columns
+      const cols = (sqlite.prepare('PRAGMA table_info(incidents)').all() as Array<{ name: string }>).map((c) => c.name)
+      if (!cols.includes('source')) sqlite.exec('ALTER TABLE incidents ADD COLUMN source TEXT')
+      if (!cols.includes('external_ref')) sqlite.exec('ALTER TABLE incidents ADD COLUMN external_ref TEXT')
+      sqlite.exec('CREATE INDEX IF NOT EXISTS idx_incidents_external_ref ON incidents(external_ref)')
     },
     describe() {
       return `SQLite at ${dbPath}`

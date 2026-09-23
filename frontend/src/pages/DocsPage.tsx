@@ -122,7 +122,7 @@ npx omniops listen --port 8000
 
 ## REST API Integration
 - Live API Base: https://one6bits.onrender.com
-- Ingest Alert: POST https://one6bits.onrender.com/api/agents/webhook/alert (alias: /api/webhooks/alerts)
+- Ingest Alert: POST https://one6bits.onrender.com/api/agents/webhook/alert (accepts Alertmanager, PagerDuty V3, Datadog or generic JSON; aliases: /api/webhooks/alertmanager, /api/webhooks/pagerduty, /api/webhooks/datadog)
 - Stream Execution: POST https://one6bits.onrender.com/api/agents/stream
 - Health Probe: GET https://one6bits.onrender.com/api/health
 `
@@ -504,8 +504,9 @@ npx omniops listen --port 8000
             </p>
             <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
-                OmniOps provides a universal alert normalization ingestion endpoint. Connect PagerDuty,
-                Datadog, Prometheus Alertmanager, or Stripe webhooks to trigger the 4-agent swarm automatically:
+                Point your monitoring tool at one URL. OmniOps reads Prometheus Alertmanager, PagerDuty (V3
+                webhooks) and Datadog payloads as they are, maps severity to priority, skips resolved alerts,
+                and does not re-run the swarm while the same alert already has an open incident.
               </p>
 
               <div
@@ -516,19 +517,47 @@ npx omniops listen --port 8000
                   POST https://one6bits.onrender.com/api/agents/webhook/alert
                 </span>
                 <span className="text-neutral-500 block text-xs">
-                  Alias: POST https://one6bits.onrender.com/api/webhooks/alerts
+                  Per-tool aliases: /api/webhooks/alertmanager · /api/webhooks/pagerduty · /api/webhooks/datadog
                 </span>
-                <span className="text-neutral-500 block mb-3 text-xs">Content-Type: application/json</span>
+                <span className="text-neutral-500 block mb-3 text-xs">
+                  Auth (when WEBHOOK_SECRET is set): header x-webhook-secret: &lt;secret&gt;, or Authorization: Bearer &lt;secret&gt;
+                </span>
                 <pre style={{ margin: 0, fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-{`{
-  "source": "pagerduty",
-  "title": "Database Read Replica Lag Exceeds 180s",
-  "description": "Replica lag on replica-02 has breached 180s SLA threshold for 3 consecutive checks.",
-  "priority": "HIGH",
-  "category": "Database Operations"
-}`}
+{`# Generic JSON (waits and returns the swarm result)
+curl -X POST https://one6bits.onrender.com/api/agents/webhook/alert \\
+  -H "Content-Type: application/json" \\
+  -H "x-webhook-secret: $WEBHOOK_SECRET" \\
+  -d '{"title": "Database Read Replica Lag Exceeds 180s",
+       "description": "Replica lag on replica-02 breached 180s for 3 checks.",
+       "priority": "HIGH"}'
+
+# Prometheus Alertmanager (alertmanager.yml)
+receivers:
+  - name: omniops
+    webhook_configs:
+      - url: https://one6bits.onrender.com/api/webhooks/alertmanager
+        http_config:
+          authorization:
+            credentials: <WEBHOOK_SECRET>
+
+# PagerDuty: Integrations > Generic Webhooks (v3) > New Webhook
+#   URL: https://one6bits.onrender.com/api/webhooks/pagerduty
+#   Event: incident.triggered   Custom header: x-webhook-secret = <WEBHOOK_SECRET>
+
+# Datadog: Integrations > Webhooks > New
+#   URL: https://one6bits.onrender.com/api/webhooks/datadog
+#   Custom headers: {"x-webhook-secret": "<WEBHOOK_SECRET>"}
+#   Payload: {"title": "$EVENT_TITLE", "body": "$EVENT_MSG", "alert_transition": "$ALERT_TRANSITION",
+#             "alert_priority": "$ALERT_PRIORITY", "alert_type": "$ALERT_TYPE",
+#             "aggreg_key": "$AGGREG_KEY", "link": "$LINK", "hostname": "$HOSTNAME"}`}
                 </pre>
               </div>
+
+              <p className="text-sm text-neutral-700">
+                Alertmanager, PagerDuty and Datadog calls get an immediate 202 with the incident ID while the
+                swarm runs in the background, so they never time out. Resolved notifications are acknowledged
+                without a new run.
+              </p>
 
               <p className="text-sm text-neutral-700">
                 When an alert is verified and synthesized, OmniOps automatically formats a rich incident
