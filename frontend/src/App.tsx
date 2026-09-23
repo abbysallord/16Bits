@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import {
-  ShieldCheck,
-  Layers,
-  Cpu,
-  FileText
-} from 'lucide-react'
-import {
   checkBackendHealth,
   fetchIncidents,
   streamSwarm,
@@ -116,7 +110,7 @@ export default function App() {
     setFinalResult(null)
 
     await streamSwarm(
-      { title, description, priority, category: 'Enterprise Workflow' },
+      { title, description, priority, category: 'Enterprise Operations' },
       (step) => {
         setActiveStep(step.stepNumber)
         setLogs((prev) => [...prev, step])
@@ -155,47 +149,49 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-black text-neutral-200 font-mono selection:bg-emerald-500/30">
+    <div className="flex flex-col min-h-screen bg-[#f1f3f7] text-neutral-900 font-mono">
       {/* Top Header */}
-      <header className="border-b-4 border-neutral-800 bg-neutral-950 px-4 py-3 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <header className="border-b-4 border-black bg-white px-4 py-3 sticky top-0 z-50 shadow-[0_4px_0_rgba(0,0,0,0.06)]">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 border-2 border-emerald-500 bg-neutral-900 text-emerald-400 font-arcade text-xs">
-              16B
-            </div>
+            <img
+              src="/assets/logo-pixel.svg"
+              alt="16Bits OmniOps Logo"
+              className="w-10 h-10 shrink-0 border-2 border-black bg-neutral-100 p-0.5 shadow-[2px_2px_0px_#000]"
+            />
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-arcade text-sm text-white tracking-wider">OMNIOPS</span>
-                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 border border-emerald-500/50 text-emerald-400 font-bold uppercase">
-                  [SWARM v1.0]
+                <span className="font-arcade text-sm text-black tracking-wide">16BITS OMNIOPS</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 border border-black bg-amber-200 text-black">
+                  [V1.0 LIGHT]
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-400 mt-0.5">Autonomous SRE & Workflow Consensus Mesh</p>
+              <p className="text-[11px] text-neutral-600 font-sans mt-0.5">Autonomous Operations Swarm & SRE Triage</p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setActiveTab('CONSOLE')}
-              className={`nes-btn text-xs py-1 px-3 ${activeTab === 'CONSOLE' ? 'is-primary' : ''}`}
+              className={`nes-btn text-xs py-1 px-4 ${activeTab === 'CONSOLE' ? 'is-primary' : ''}`}
             >
               [OPERATIONS CONSOLE]
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('DOCS')}
-              className={`nes-btn text-xs py-1 px-3 ${activeTab === 'DOCS' ? 'is-success' : ''}`}
+              className={`nes-btn text-xs py-1 px-4 ${activeTab === 'DOCS' ? 'is-success' : ''}`}
             >
-              [AGENT DOCS & SKILL.MD]
+              [DOCS & SKILL.MD]
             </button>
           </div>
 
           {/* Engine Status Tag */}
           <div className="hidden lg:flex items-center gap-2 text-xs">
-            <span className="text-neutral-500">ENGINE:</span>
-            <span className={`px-2 py-0.5 text-[10px] font-bold border ${health?.status === 'ok' ? 'border-emerald-500 text-emerald-400 bg-emerald-950/40' : 'border-red-500 text-red-400'}`}>
+            <span className="text-neutral-500 font-bold">ENGINE:</span>
+            <span className={`px-2 py-1 text-[11px] font-bold border-2 border-black ${health?.status === 'ok' ? 'bg-emerald-300 text-black shadow-[2px_2px_0px_#000]' : 'bg-red-300 text-black shadow-[2px_2px_0px_#000]'}`}>
               {health?.status === 'ok' ? '[ONLINE: GROQ+LANGSMITH]' : '[OFFLINE]'}
             </span>
           </div>
@@ -207,82 +203,94 @@ export default function App() {
         {activeTab === 'CONSOLE' ? (
           <>
             {/* 4-Agent Mesh Visualizer */}
-            <section className="nes-container is-dark with-title">
-              <p className="title text-xs font-arcade text-emerald-400">[4-AGENT CONSENSUS MESH]</p>
-              
+            <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+              <p className="title text-xs font-arcade text-black bg-emerald-300 border-2 border-black px-2 py-0.5">
+                [4-AGENT CONSENSUS SWARM]
+              </p>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
                 {/* Agent 1 */}
-                <div className={`p-4 border-2 transition-all ${activeStep === 1 ? 'border-blue-400 bg-blue-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-blue-400 font-bold uppercase">[AGENT 1]</span>
-                    <Layers className="h-4 w-4 text-blue-400" />
+                <div className={`p-4 border-2 border-black bg-white transition-all shadow-[3px_3px_0px_#000] ${activeStep === 1 ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <img src="/assets/agent-planner.svg" alt="Planner" className="w-8 h-8 border border-black" />
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-100 border border-blue-500 text-blue-800">
+                      [STEP 1]
+                    </span>
                   </div>
-                  <div className="font-bold text-white text-xs mb-1">PLANNER AGENT</div>
-                  <p className="text-[11px] text-neutral-400 leading-relaxed">
-                    Decomposes alert payload into structured execution DAG.
+                  <div className="font-bold text-black text-xs mb-1">PLANNER AGENT</div>
+                  <p className="text-[11px] text-neutral-600 leading-relaxed font-sans">
+                    Decomposes alert into structured investigative DAG.
                   </p>
-                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
-                    {activeStep === 1 ? '[DECOMPOSING...]' : activeStep > 1 ? '[COMPLETED]' : '[IDLE]'}
+                  <div className="mt-3 text-[10px] font-bold text-neutral-700">
+                    STATUS: {activeStep === 1 ? '[DECOMPOSING...]' : activeStep > 1 ? '[DONE]' : '[READY]'}
                   </div>
                 </div>
 
                 {/* Agent 2 */}
-                <div className={`p-4 border-2 transition-all ${activeStep === 2 ? 'border-purple-400 bg-purple-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-purple-400 font-bold uppercase">[AGENT 2]</span>
-                    <Cpu className="h-4 w-4 text-purple-400" />
+                <div className={`p-4 border-2 border-black bg-white transition-all shadow-[3px_3px_0px_#000] ${activeStep === 2 ? 'ring-4 ring-purple-400 bg-purple-50' : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <img src="/assets/agent-investigator.svg" alt="Investigator" className="w-8 h-8 border border-black" />
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-purple-100 border border-purple-500 text-purple-800">
+                      [STEP 2]
+                    </span>
                   </div>
-                  <div className="font-bold text-white text-xs mb-1">INVESTIGATOR AGENT</div>
-                  <p className="text-[11px] text-neutral-400 leading-relaxed">
-                    Queries host OS vitals and matches local markdown SOPs.
+                  <div className="font-bold text-black text-xs mb-1">INVESTIGATOR AGENT</div>
+                  <p className="text-[11px] text-neutral-600 leading-relaxed font-sans">
+                    Queries host OS vitals & matches local markdown SOPs.
                   </p>
-                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
-                    {activeStep === 2 ? '[QUERYING HOST+SOPS...]' : activeStep > 2 ? '[COMPLETED]' : '[IDLE]'}
+                  <div className="mt-3 text-[10px] font-bold text-neutral-700">
+                    STATUS: {activeStep === 2 ? '[QUERYING SOPS...]' : activeStep > 2 ? '[DONE]' : '[READY]'}
                   </div>
                 </div>
 
                 {/* Agent 3 */}
-                <div className={`p-4 border-2 transition-all ${activeStep === 3 ? 'border-amber-400 bg-amber-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-amber-400 font-bold uppercase">[AGENT 3]</span>
-                    <ShieldCheck className="h-4 w-4 text-amber-400" />
+                <div className={`p-4 border-2 border-black bg-white transition-all shadow-[3px_3px_0px_#000] ${activeStep === 3 ? 'ring-4 ring-amber-400 bg-amber-50' : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <img src="/assets/agent-verifier.svg" alt="Verifier" className="w-8 h-8 border border-black" />
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 border border-amber-500 text-amber-800">
+                      [STEP 3]
+                    </span>
                   </div>
-                  <div className="font-bold text-white text-xs mb-1">VERIFICATION GATE</div>
-                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                  <div className="font-bold text-black text-xs mb-1">VERIFIER GATE</div>
+                  <p className="text-[11px] text-neutral-600 leading-relaxed font-sans">
                     Audits SLA risk; enforces Human-in-the-Loop authorization.
                   </p>
-                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
-                    {activeStep === 3 ? '[AUDITING SAFETY...]' : activeStep > 3 ? '[COMPLETED]' : '[IDLE]'}
+                  <div className="mt-3 text-[10px] font-bold text-neutral-700">
+                    STATUS: {activeStep === 3 ? '[AUDITING SAFETY...]' : activeStep > 3 ? '[DONE]' : '[READY]'}
                   </div>
                 </div>
 
                 {/* Agent 4 */}
-                <div className={`p-4 border-2 transition-all ${activeStep === 4 ? 'border-emerald-400 bg-emerald-950/30' : 'border-neutral-800 bg-neutral-900/60'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-emerald-400 font-bold uppercase">[AGENT 4]</span>
-                    <FileText className="h-4 w-4 text-emerald-400" />
+                <div className={`p-4 border-2 border-black bg-white transition-all shadow-[3px_3px_0px_#000] ${activeStep === 4 ? 'ring-4 ring-emerald-400 bg-emerald-50' : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <img src="/assets/agent-synthesizer.svg" alt="Synthesizer" className="w-8 h-8 border border-black" />
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 border border-emerald-500 text-emerald-800">
+                      [STEP 4]
+                    </span>
                   </div>
-                  <div className="font-bold text-white text-xs mb-1">SYNTHESIZER AGENT</div>
-                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                  <div className="font-bold text-black text-xs mb-1">SYNTHESIZER AGENT</div>
+                  <p className="text-[11px] text-neutral-600 leading-relaxed font-sans">
                     Compiles recovery commands, customer memo, & trace.
                   </p>
-                  <div className="mt-3 text-[10px] font-bold text-neutral-500">
-                    {activeStep === 4 && isExecuting ? '[SYNTHESIZING...]' : finalResult ? '[PLAN READY]' : '[IDLE]'}
+                  <div className="mt-3 text-[10px] font-bold text-neutral-700">
+                    STATUS: {activeStep === 4 && isExecuting ? '[SYNTHESIZING...]' : finalResult ? '[PLAN READY]' : '[READY]'}
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Split Grid: Form/Benchmarks & Stream/Resolution */}
+            {/* Split Grid: Form & Output */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Dispatch & Benchmarks */}
+              {/* Left Column: Dispatch & Presets */}
               <div className="lg:col-span-5 space-y-6">
-                <section className="nes-container is-dark with-title">
-                  <p className="title text-xs font-arcade text-white">[DISPATCH CONSOLE]</p>
+                <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+                  <p className="title text-xs font-arcade text-black bg-blue-200 border-2 border-black px-2 py-0.5">
+                    [DISPATCH CONSOLE]
+                  </p>
 
                   {/* Benchmark presets */}
                   <div className="mb-4">
-                    <label className="text-[10px] text-neutral-400 block mb-1.5 font-bold">[SELECT BENCHMARK INCIDENT]</label>
+                    <label className="text-[11px] font-bold text-neutral-800 block mb-2">[SELECT REAL BENCHMARK INCIDENT]</label>
                     <div className="grid grid-cols-1 gap-2">
                       <button
                         type="button"
@@ -291,9 +299,9 @@ export default function App() {
                           'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on callbacks.',
                           'CRITICAL'
                         )}
-                        className="text-left p-2 border border-neutral-800 hover:border-neutral-600 bg-neutral-900/80 text-xs text-neutral-300 transition"
+                        className="text-left p-2.5 border-2 border-black bg-neutral-50 hover:bg-amber-100 text-xs text-neutral-900 transition shadow-[2px_2px_0px_#000]"
                       >
-                        <span className="text-amber-400 font-bold">[FINTECH]</span> Stripe 429 Rate Limit Surge
+                        <span className="font-bold text-amber-800">[FINTECH]</span> Stripe 429 Rate Limit Surge
                       </button>
                       <button
                         type="button"
@@ -302,9 +310,9 @@ export default function App() {
                           'FATAL: remaining connection slots are reserved for non-replication superuser connections. Active client sessions at 98% of max_connections.',
                           'HIGH'
                         )}
-                        className="text-left p-2 border border-neutral-800 hover:border-neutral-600 bg-neutral-900/80 text-xs text-neutral-300 transition"
+                        className="text-left p-2.5 border-2 border-black bg-neutral-50 hover:bg-blue-100 text-xs text-neutral-900 transition shadow-[2px_2px_0px_#000]"
                       >
-                        <span className="text-blue-400 font-bold">[DATABASE]</span> PostgreSQL Connection Pool Saturation
+                        <span className="font-bold text-blue-800">[DATABASE]</span> PostgreSQL Connection Pool Exhaustion
                       </button>
                       <button
                         type="button"
@@ -313,9 +321,9 @@ export default function App() {
                           'Redis instance has hit maxmemory policy limit. Cache eviction latency spike threatening active user sessions.',
                           'HIGH'
                         )}
-                        className="text-left p-2 border border-neutral-800 hover:border-neutral-600 bg-neutral-900/80 text-xs text-neutral-300 transition"
+                        className="text-left p-2.5 border-2 border-black bg-neutral-50 hover:bg-red-100 text-xs text-neutral-900 transition shadow-[2px_2px_0px_#000]"
                       >
-                        <span className="text-red-400 font-bold">[INFRA]</span> Redis Memory OOM Eviction Spike
+                        <span className="font-bold text-red-800">[INFRA]</span> Redis Memory OOM Eviction Spike
                       </button>
                     </div>
                   </div>
@@ -323,36 +331,36 @@ export default function App() {
                   {/* Form */}
                   <form onSubmit={handleRunSwarm} className="space-y-4">
                     <div>
-                      <label className="text-[10px] text-neutral-400 block mb-1 font-bold">[INCIDENT TITLE]</label>
+                      <label className="text-[11px] font-bold text-neutral-800 block mb-1">[INCIDENT TITLE]</label>
                       <input
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         disabled={isExecuting}
-                        className="w-full bg-neutral-900 border-2 border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-white border-2 border-black p-2.5 text-xs text-neutral-900 focus:outline-none focus:bg-amber-50 shadow-[2px_2px_0px_#000]"
                         placeholder="e.g. Database connection pool exhausted"
                       />
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-neutral-400 block mb-1 font-bold">[TELEMETRY / ERROR LOG]</label>
+                      <label className="text-[11px] font-bold text-neutral-800 block mb-1">[TELEMETRY / ERROR LOG]</label>
                       <textarea
                         rows={3}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         disabled={isExecuting}
-                        className="w-full bg-neutral-900 border-2 border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-white border-2 border-black p-2.5 text-xs text-neutral-900 focus:outline-none focus:bg-amber-50 shadow-[2px_2px_0px_#000]"
                         placeholder="Paste error logs, stack traces, or alerts..."
                       />
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-neutral-400 block mb-1 font-bold">[PRIORITY SLA]</label>
+                      <label className="text-[11px] font-bold text-neutral-800 block mb-1">[PRIORITY SLA]</label>
                       <select
                         value={priority}
                         onChange={(e: any) => setPriority(e.target.value)}
                         disabled={isExecuting}
-                        className="w-full bg-neutral-900 border-2 border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-white border-2 border-black p-2 text-xs text-neutral-900 focus:outline-none shadow-[2px_2px_0px_#000]"
                       >
                         <option value="CRITICAL">CRITICAL (15m SLA Guardrail)</option>
                         <option value="HIGH">HIGH (1h SLA Guardrail)</option>
@@ -372,14 +380,16 @@ export default function App() {
                 </section>
               </div>
 
-              {/* Right Column: Execution Trajectory & Final Plan */}
+              {/* Right Column: Execution Trajectory & Plan */}
               <div className="lg:col-span-7 space-y-6">
-                {/* Live Agent Logs Stream */}
-                <section className="nes-container is-dark with-title">
-                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-neutral-800">
-                    <p className="title text-xs font-arcade text-white">[LIVE EXECUTION STREAM]</p>
+                {/* Live Stream */}
+                <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b-2 border-black">
+                    <p className="title text-xs font-arcade text-black bg-neutral-200 border-2 border-black px-2 py-0.5">
+                      [EXECUTION STREAM]
+                    </p>
                     {finalResult && (
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500 px-2 py-0.5">
+                      <span className="text-[11px] font-bold bg-emerald-200 border border-black px-2 py-0.5 text-black">
                         [COMPLETED IN {finalResult.executionDurationMs}MS]
                       </span>
                     )}
@@ -387,24 +397,24 @@ export default function App() {
 
                   <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 text-xs">
                     {logs.length === 0 ? (
-                      <div className="py-10 text-center text-neutral-500 text-xs">
-                        [AWAITING TRIGGER. CLICK DISPATCH TO EXECUTE SWARM.]
+                      <div className="py-12 text-center text-neutral-500 text-xs">
+                        [AWAITING TRIGGER. CLICK DISPATCH SWARM TO COMMENCE TRIAGE.]
                       </div>
                     ) : (
                       logs.map((log, idx) => (
-                        <div key={idx} className="p-3 border border-neutral-800 bg-neutral-950 space-y-1">
+                        <div key={idx} className="p-3 border-2 border-black bg-neutral-50 space-y-1 shadow-[2px_2px_0px_#000]">
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-emerald-400 uppercase">
+                            <span className="font-bold text-blue-700 uppercase">
                               &gt; [STEP {log.stepNumber}] {log.agentName}
                             </span>
                             <span className="text-[10px] text-neutral-500">
                               {new Date(log.timestamp).toLocaleTimeString()}
                             </span>
                           </div>
-                          <div className="text-[11px] text-neutral-300 font-bold bg-neutral-900 p-1.5 border border-neutral-800">
+                          <div className="text-[11px] text-black font-bold bg-white p-2 border border-neutral-300">
                             {log.action}
                           </div>
-                          <p className="text-neutral-400 text-xs leading-relaxed whitespace-pre-wrap mt-1">
+                          <p className="text-neutral-700 text-xs leading-relaxed whitespace-pre-wrap mt-1 font-sans">
                             {log.thought}
                           </p>
                         </div>
@@ -415,9 +425,11 @@ export default function App() {
 
                 {/* Final Synthesized Resolution Card */}
                 {finalResult && (
-                  <section className="nes-container is-dark with-title">
-                    <div className="flex items-center justify-between pb-2 mb-3 border-b border-neutral-800">
-                      <p className="title text-xs font-arcade text-emerald-400">[SYNTHESIZED RESOLUTION]</p>
+                  <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 mb-3 border-b-2 border-black">
+                      <p className="title text-xs font-arcade text-black bg-emerald-300 border-2 border-black px-2 py-0.5">
+                        [SYNTHESIZED REMEDIATION PLAYBOOK]
+                      </p>
                       
                       <div className="flex items-center gap-2">
                         {finalResult.langsmithTraceUrl && (
@@ -439,38 +451,38 @@ export default function App() {
                           }}
                           className="nes-btn is-primary text-[10px] py-0.5 px-2"
                         >
-                          {copied ? '[COPIED]' : '[COPY RESOLUTION]'}
+                          {copied ? '[COPIED]' : '[COPY FIX]'}
                         </button>
                       </div>
                     </div>
 
                     {/* Human-in-the-Loop Safety Gate */}
                     {finalResult.status === 'AWAITING_APPROVAL' && !approvedLocally ? (
-                      <div className="p-3 border-2 border-amber-500 bg-amber-950/30 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="p-4 border-4 border-amber-500 bg-amber-50 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[3px_3px_0px_#f59e0b]">
                         <div>
-                          <div className="font-bold text-amber-300 text-xs">
-                            [HUMAN AUTHORIZATION REQUIRED: SAFETY GUARDRAIL GATE]
+                          <div className="font-bold text-amber-900 text-xs">
+                            [HUMAN AUTHORIZATION REQUIRED: SAFETY GUARDRAIL]
                           </div>
-                          <p className="text-[11px] text-amber-200/80 mt-0.5">
-                            High-risk remediation requires explicit digital sign-off before dispatching commands.
+                          <p className="text-[11px] text-amber-800 mt-1 font-sans">
+                            Critical remediation involves state-changing commands. Compliance requires digital sign-off.
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={handleApprove}
                           disabled={isApproving}
-                          className="nes-btn is-error text-xs py-1 px-3 shrink-0"
+                          className="nes-btn is-error text-xs py-1 px-4 shrink-0"
                         >
                           {isApproving ? '[AUTHORIZING...]' : '[AUTHORIZE EXECUTION]'}
                         </button>
                       </div>
                     ) : (
-                      <div className="p-2 border border-emerald-500 bg-emerald-950/30 mb-4 text-xs text-emerald-300">
-                        [PLAN AUTHORIZED BY HUMAN OPERATOR • SIGNED & AUDITED IN SQLITE]
+                      <div className="p-3 border-2 border-emerald-500 bg-emerald-50 mb-4 text-xs font-bold text-emerald-900">
+                        [REMEDIATION PLAN AUTHORIZED BY OPERATOR • AUDITED IN SQLITE]
                       </div>
                     )}
 
-                    <div className="bg-neutral-950 p-4 border border-neutral-800 text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap max-h-[350px] overflow-y-auto">
+                    <div className="bg-neutral-900 p-4 border-2 border-black text-xs leading-relaxed text-neutral-100 whitespace-pre-wrap max-h-[400px] overflow-y-auto font-mono">
                       {finalResult.finalResolution}
                     </div>
                   </section>
@@ -481,59 +493,76 @@ export default function App() {
         ) : (
           /* DOCS & AGENT SKILL TAB */
           <div className="space-y-6">
-            {/* Intro & Overview */}
-            <section className="nes-container is-dark with-title">
-              <p className="title text-xs font-arcade text-white">[WHAT IS OMNIOPS?]</p>
-              <div className="space-y-3 text-xs text-neutral-300 leading-relaxed">
-                <p>
-                  <strong>16Bits OmniOps</strong> is an autonomous multi-agent operational consensus swarm. When a company's production database, payment gateway, or caching layer crashes, instead of humans wasting 45 minutes manually checking 10 dashboards, OmniOps queries host vitals, retrieves verified local Standard Operating Procedure (SOP) runbooks, enforces safety guardrails, and outputs an audited recovery playbook.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                  <div className="p-3 border border-neutral-800 bg-neutral-900/60">
-                    <div className="text-emerald-400 font-bold mb-1">[1. ZERO ROOT PASSWORDS]</div>
-                    <p className="text-neutral-400 text-[11px]">
-                      Never requires AWS root credentials or database write access. Operates safely via read-only SOP mounts and webhooks.
-                    </p>
-                  </div>
-                  <div className="p-3 border border-neutral-800 bg-neutral-900/60">
-                    <div className="text-amber-400 font-bold mb-1">[2. OPERATOR SAFETY GATE]</div>
-                    <p className="text-neutral-400 text-[11px]">
-                      Destructive commands are automatically halted behind an explicit digital sign-off gate before execution.
-                    </p>
-                  </div>
-                  <div className="p-3 border border-neutral-800 bg-neutral-900/60">
-                    <div className="text-cyan-400 font-bold mb-1">[3. 100% OBSERVABILITY]</div>
-                    <p className="text-neutral-400 text-[11px]">
-                      Every single agent thought, tool call, and SLA check is logged live to LangSmith with millisecond precision.
-                    </p>
-                  </div>
+            {/* Hero / What is OmniOps */}
+            <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+              <p className="title text-xs font-arcade text-black bg-neutral-200 border-2 border-black px-2 py-0.5">
+                [WHAT IS OMNIOPS?]
+              </p>
+
+              <div className="flex flex-col md:flex-row items-center gap-6 pb-4">
+                <img
+                  src="/assets/hero-banner.svg"
+                  alt="OmniOps Command Center"
+                  className="w-64 h-24 border-2 border-black bg-neutral-100 shadow-[3px_3px_0px_#000] shrink-0"
+                />
+                <div className="space-y-2 text-xs text-neutral-800 leading-relaxed font-sans">
+                  <p className="font-bold text-black font-mono">
+                    OmniOps is an automated 911 dispatch doctor for production cloud outages.
+                  </p>
+                  <p>
+                    When an enterprise database connection pool spikes or payment webhooks fail, engineers normally waste 45 minutes manually checking 10 dashboards. OmniOps queries server telemetry, retrieves the company's vetted emergency runbook from disk, checks safety guardrails, and hands the engineer a verified fix.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Pillars */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="p-3 border-2 border-black bg-emerald-50 shadow-[2px_2px_0px_#000]">
+                  <div className="text-emerald-900 font-bold mb-1">[1. ZERO ROOT KEYS]</div>
+                  <p className="text-neutral-700 text-[11px] font-sans">
+                    Never requires AWS root credentials or database write passwords. Operates via read-only SOP mounts.
+                  </p>
+                </div>
+                <div className="p-3 border-2 border-black bg-amber-50 shadow-[2px_2px_0px_#000]">
+                  <div className="text-amber-900 font-bold mb-1">[2. SAFETY GATE]</div>
+                  <p className="text-neutral-700 text-[11px] font-sans">
+                    Destructive operations are halted behind an explicit digital sign-off gate before execution.
+                  </p>
+                </div>
+                <div className="p-3 border-2 border-black bg-blue-50 shadow-[2px_2px_0px_#000]">
+                  <div className="text-blue-900 font-bold mb-1">[3. 100% OBSERVABLE]</div>
+                  <p className="text-neutral-700 text-[11px] font-sans">
+                    Every single agent thought, tool call, and SLA check is logged live to LangSmith with trace URLs.
+                  </p>
                 </div>
               </div>
             </section>
 
             {/* Quick Start Guide */}
-            <section className="nes-container is-dark with-title">
-              <p className="title text-xs font-arcade text-emerald-400">[QUICK START (3 WAYS TO USE)]</p>
+            <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+              <p className="title text-xs font-arcade text-black bg-blue-200 border-2 border-black px-2 py-0.5">
+                [QUICK START GUIDE]
+              </p>
               
-              <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 {/* Modality 1 */}
-                <div className="p-3 border border-neutral-800 bg-neutral-900/40">
-                  <div className="font-bold text-white mb-1">[METHOD 1: TERMINAL CLI (OMNIOPS)]</div>
-                  <p className="text-neutral-400 text-[11px] mb-2">
-                    Run health diagnostics, pipe terminal errors, or triage directly:
+                <div className="p-3 border-2 border-black bg-neutral-50 shadow-[2px_2px_0px_#000]">
+                  <div className="font-bold text-black mb-1">[METHOD 1: TERMINAL CLI]</div>
+                  <p className="text-neutral-600 text-[11px] mb-2 font-sans">
+                    Run health diagnostics or pipe terminal errors directly into OmniOps:
                   </p>
-                  <pre className="p-2 bg-black border border-neutral-800 text-emerald-400 text-[11px] overflow-x-auto">
-                    {`# Host infrastructure probe\nomniops doctor\n\n# Direct triage\nomniops triage "Postgres connection pool exhausted" CRITICAL\n\n# Pipe any command failure\ncat /var/log/syslog | tail -n 25 | omniops CRITICAL`}
+                  <pre className="p-2.5 bg-neutral-900 border-2 border-black text-emerald-400 text-[11px] overflow-x-auto">
+                    {`# Host infrastructure probe\nomniops doctor\n\n# Direct triage\nomniops triage "Postgres pool exhausted" CRITICAL\n\n# Pipe any command failure\ncat error.log | omniops CRITICAL`}
                   </pre>
                 </div>
 
                 {/* Modality 2 */}
-                <div className="p-3 border border-neutral-800 bg-neutral-900/40">
-                  <div className="font-bold text-white mb-1">[METHOD 2: MONITORING ALERT WEBHOOK]</div>
-                  <p className="text-neutral-400 text-[11px] mb-2">
+                <div className="p-3 border-2 border-black bg-neutral-50 shadow-[2px_2px_0px_#000]">
+                  <div className="font-bold text-black mb-1">[METHOD 2: MONITORING WEBHOOK]</div>
+                  <p className="text-neutral-600 text-[11px] mb-2 font-sans">
                     Paste this endpoint into Datadog, Grafana, Sentry, or PagerDuty:
                   </p>
-                  <pre className="p-2 bg-black border border-neutral-800 text-cyan-400 text-[11px] overflow-x-auto">
+                  <pre className="p-2.5 bg-neutral-900 border-2 border-black text-cyan-400 text-[11px] overflow-x-auto">
                     {`POST http://<your-server>:8000/api/agents/webhook/alert`}
                   </pre>
                 </div>
@@ -541,9 +570,11 @@ export default function App() {
             </section>
 
             {/* Agent Skill Export for Claude Code / Cursor */}
-            <section className="nes-container is-dark with-title">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-neutral-800 mb-3">
-                <p className="title text-xs font-arcade text-amber-400">[AGENT SKILL EXPORT: SKILL.MD]</p>
+            <section className="nes-container with-title bg-white shadow-[4px_4px_0px_#000]">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b-2 border-black mb-3">
+                <p className="title text-xs font-arcade text-black bg-amber-200 border-2 border-black px-2 py-0.5">
+                  [AGENT SKILL EXPORT: SKILL.MD]
+                </p>
                 <button
                   type="button"
                   onClick={() => {
@@ -551,17 +582,17 @@ export default function App() {
                     setCopiedSkill(true)
                     setTimeout(() => setCopiedSkill(false), 2000)
                   }}
-                  className="nes-btn is-success text-xs py-1 px-3"
+                  className="nes-btn is-success text-xs py-1 px-4"
                 >
                   {copiedSkill ? '[COPIED TO CLIPBOARD!]' : '[COPY SKILL.MD FOR CLAUDE CODE]'}
                 </button>
               </div>
 
-              <p className="text-xs text-neutral-400 mb-3">
-                Give your autonomous AI coding assistants (Claude Code, Cursor, Codex, Antigravity) instant SRE capabilities. Paste this into <code className="text-amber-300">.agents/skills/16bits-ops/SKILL.md</code>:
+              <p className="text-xs text-neutral-700 mb-3 font-sans">
+                Give your autonomous AI coding assistants (Claude Code, Cursor, Codex, Antigravity) instant SRE capabilities. Paste this into <code className="bg-neutral-200 px-1 py-0.5 border border-black font-bold">.agents/skills/16bits-ops/SKILL.md</code>:
               </p>
 
-              <pre className="p-3 bg-black border border-neutral-800 text-neutral-300 text-[11px] overflow-x-auto max-h-[350px] leading-relaxed">
+              <pre className="p-3.5 bg-neutral-900 border-2 border-black text-neutral-100 text-[11px] overflow-x-auto max-h-[350px] leading-relaxed">
                 {SKILL_MD_CONTENT}
               </pre>
             </section>
@@ -570,8 +601,8 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t-4 border-neutral-800 bg-neutral-950 py-3 px-4 text-center text-[10px] text-neutral-500 font-mono">
-        16BITS OMNIOPS • AUTONOMOUS SRE MESH • STRICT RUBRIC TECH STACK COMPLIANCE • 2026
+      <footer className="border-t-4 border-black bg-white py-3 px-4 text-center text-[11px] text-neutral-600 font-mono">
+        16BITS OMNIOPS • AUTONOMOUS SRE MESH • NES.CSS LIGHT THEME • STRICT RUBRIC TECH STACK COMPLIANCE • 2026
       </footer>
     </div>
   )

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="40" height="40" shape-rendering="crispEdges">
+  <!-- Investigator Pixel Icon: Radar & Telescope Lens -->
+  <rect x="4" y="4" width="24" height="24" fill="#581c87" />
+  <rect x="6" y="6" width="20" height="20" fill="#a855f7" />
+  <!-- Glass Outer Ring -->
+  <rect x="9" y="8" width="12" height="12" fill="#3b0764" />
+  <rect x="10" y="9" width="10" height="10" fill="#f3e8ff" />
+  <!-- Radar Crosshair -->
+  <rect x="14" y="9" width="2" height="10" fill="#c084fc" />
+  <rect x="10" y="13" width="10" height="2" fill="#c084fc" />
+  <rect x="14" y="13" width="2" height="2" fill="#6b21a8" />
+  <!-- Blip -->
+  <rect x="12" y="11" width="2" height="2" fill="#ef4444" />
+  <!-- Handle -->
+  <rect x="19" y="18" width="3" height="3" fill="#3b0764" />
+  <rect x="21" y="20" width="4" height="4" fill="#f59e0b" />
+  <rect x="24" y="23" width="3" height="3" fill="#d97706" />
+</svg>
