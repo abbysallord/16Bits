@@ -4,6 +4,8 @@ export interface HealthStatus {
   version: string
   database: string
   ai_configured: boolean
+  demo_account?: boolean
+  rate_limiting?: boolean
 }
 
 export interface User {

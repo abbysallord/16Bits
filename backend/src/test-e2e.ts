@@ -351,6 +351,27 @@ async function runTests() {
     }
   }
 
+  // TEST 10e: Login brute-force protection (per IP + email) returns 429 with Retry-After
+  try {
+    const email = `bruteforce-${Date.now()}@example.com`
+    const statuses: number[] = []
+    let retryAfter: string | null = null
+    for (let i = 0; i < 11; i++) {
+      const res = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'wrong-password' })
+      })
+      statuses.push(res.status)
+      if (res.status === 429) retryAfter = res.headers.get('retry-after')
+    }
+    const health = await request('/api/health')
+    const passed = statuses.slice(0, 10).every(s => s === 401) && statuses[10] === 429 && Boolean(retryAfter) && health.data.rate_limiting === true && health.data.demo_account === true
+    recordTest('10e. Login Rate Limit (11th attempt -> 429)', passed, `Statuses: ${statuses.join(',')}, Retry-After: ${retryAfter}s, health.rate_limiting=${health.data.rate_limiting}, health.demo_account=${health.data.demo_account}`)
+  } catch (err: any) {
+    recordTest('10e. Login Rate Limit', false, err.message)
+  }
+
   // TEST 10: Human-in-the-Loop Operator Authorization with JWT Signature
   if (syncIncidentId && authToken) {
     try {

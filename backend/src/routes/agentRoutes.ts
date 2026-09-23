@@ -8,6 +8,7 @@ import { validate } from '../middleware/validate.js'
 import { normalizeAlert, webhookAuthorized } from '../services/alertIntake.js'
 import { notifyIncidentApproved } from '../services/slackService.js'
 import { AuthenticatedRequest, requireAuth, verifyToken } from '../middleware/auth.js'
+import { approveLimiter, executeLimiter, webhookLimiter } from '../middleware/rateLimit.js'
 
 export const agentRouter = Router()
 
@@ -70,7 +71,7 @@ agentRouter.delete('/runbooks/:filename', requireAuth, async (req: Authenticated
 // Alert ingestion webhook. Accepts Prometheus Alertmanager, PagerDuty V3 and Datadog payloads as-is
 // (auto-detected, or forced with ?source=alertmanager|pagerduty|datadog), plus a generic JSON shape.
 // If WEBHOOK_SECRET is set, send it as x-webhook-secret, Authorization: Bearer, or ?token=.
-agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<void> => {
+agentRouter.post('/webhook/alert', webhookLimiter, async (req: Request, res: Response): Promise<void> => {
   if (!webhookAuthorized(req)) {
     res.status(401).json({ error: 'Invalid or missing webhook secret (x-webhook-secret header, Bearer token, or ?token=)' })
     return
@@ -142,7 +143,7 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
 
 // Human-in-the-Loop Operator Authorization
 // Human approval gate. Signed-in operators only; the approver comes from the verified JWT.
-agentRouter.post('/approve', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+agentRouter.post('/approve', approveLimiter, requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { incidentId } = req.body
   if (!incidentId || typeof incidentId !== 'string') {
     res.status(400).json({ error: 'incidentId is required' })
@@ -180,7 +181,7 @@ agentRouter.post('/approve', requireAuth, async (req: AuthenticatedRequest, res:
 })
 
 // Synchronous Swarm Execution
-agentRouter.post('/execute', validate(runAgentSchema), async (req: Request, res: Response): Promise<void> => {
+agentRouter.post('/execute', executeLimiter, validate(runAgentSchema), async (req: Request, res: Response): Promise<void> => {
   try {
     const { title, description, priority, category } = req.body
     let incidentId = req.body.incidentId
@@ -212,7 +213,7 @@ agentRouter.post('/execute', validate(runAgentSchema), async (req: Request, res:
 })
 
 // Real-Time Server-Sent Events (SSE) Streaming Execution
-agentRouter.post('/stream', validate(runAgentSchema), async (req: Request, res: Response): Promise<void> => {
+agentRouter.post('/stream', executeLimiter, validate(runAgentSchema), async (req: Request, res: Response): Promise<void> => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')

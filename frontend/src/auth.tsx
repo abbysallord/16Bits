@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { ShieldCheck, LogOut } from 'lucide-react'
-import { loginUser, registerUser } from './services/api'
+import { loginUser, registerUser, checkBackendHealth } from './services/api'
 import type { User } from './services/api'
 
 // Public demo operator seeded by the backend (see seedDemoData in backend/src/server.ts)
@@ -136,6 +136,13 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
+  // Hide the demo button when the backend runs with DEMO_ACCOUNT=off (shown until health says otherwise)
+  const [demoEnabled, setDemoEnabled] = useState(true)
+  useEffect(() => {
+    checkBackendHealth()
+      .then((h) => setDemoEnabled(h.demo_account !== false))
+      .catch(() => {})
+  }, [])
   const [error, setError] = useState<string | null>(null)
 
   const switchMode = (m: Mode) => {
@@ -215,7 +222,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
             : 'New accounts get the operator role and can approve incidents and upload runbooks.'}
         </p>
 
-        {mode === 'signin' && (
+        {mode === 'signin' && demoEnabled && (
           <>
             <button
               type="button"

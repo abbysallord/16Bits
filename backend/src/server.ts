@@ -7,6 +7,8 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { db, initDatabase } from './db/database.js'
 import { runbookService } from './services/runbookService.js'
+import { demoAccountEnabled } from './config/demo.js'
+import { rateLimitEnabled } from './middleware/rateLimit.js'
 import { authRouter } from './routes/authRoutes.js'
 import { incidentRouter } from './routes/incidentRoutes.js'
 import { agentRouter } from './routes/agentRoutes.js'
@@ -29,6 +31,9 @@ const allowedOrigins = (process.env.CORS_ORIGINS || DEFAULT_CORS_ORIGINS.join(',
   .map((o) => o.trim().replace(/\/$/, ''))
   .filter(Boolean)
 
+// Render sits behind one proxy hop; this makes req.ip the real client IP for rate limiting
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1))
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
@@ -49,7 +54,9 @@ app.get('/api/health', (req, res) => {
     ai_configured: !aiInfo.isMock,
     ai_provider: aiInfo.activeProvider,
     ai_model: aiInfo.model,
-    is_mock: aiInfo.isMock
+    is_mock: aiInfo.isMock,
+    demo_account: demoAccountEnabled(),
+    rate_limiting: rateLimitEnabled()
   })
 })
 
@@ -73,6 +80,10 @@ app.use('/api/webhooks', (req, res, next) => {
 
 // Auto-seed demo credentials and benchmark incident if database is clean
 async function seedDemoData() {
+  if (!demoAccountEnabled()) {
+    console.log('[Seed] DEMO_ACCOUNT=off: public demo login disabled, nothing seeded')
+    return
+  }
   const userCount = await db.get('SELECT COUNT(*) as count FROM users') as { count: number }
   if (userCount.count === 0) {
     const salt = await bcrypt.genSalt(10)

@@ -5,11 +5,13 @@ import { db } from '../db/database.js'
 import { registerSchema, loginSchema } from '../schemas/authSchemas.js'
 import { validate } from '../middleware/validate.js'
 import { generateToken, requireAuth, AuthenticatedRequest } from '../middleware/auth.js'
+import { loginLimiter, registerLimiter } from '../middleware/rateLimit.js'
+import { DEMO_EMAIL, demoAccountEnabled } from '../config/demo.js'
 
 export const authRouter = Router()
 
 // Register endpoint
-authRouter.post('/register', validate(registerSchema), async (req: Request, res: Response): Promise<void> => {
+authRouter.post('/register', registerLimiter, validate(registerSchema), async (req: Request, res: Response): Promise<void> => {
   const { email, password, name } = req.body
   // Self-registration always creates an operator; never trust a client-supplied role
   const role = 'operator'
@@ -40,8 +42,13 @@ authRouter.post('/register', validate(registerSchema), async (req: Request, res:
 })
 
 // Login endpoint
-authRouter.post('/login', validate(loginSchema), async (req: Request, res: Response): Promise<void> => {
+authRouter.post('/login', loginLimiter, validate(loginSchema), async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body
+
+  if (!demoAccountEnabled() && String(email).toLowerCase() === DEMO_EMAIL) {
+    res.status(403).json({ error: 'The public demo account is disabled on this server' })
+    return
+  }
 
   const user = await db.get('SELECT * FROM users WHERE email = ?', [email]) as any
   if (!user) {

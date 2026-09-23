@@ -136,6 +136,8 @@ npm run test:e2e   # 14 checks: health, auth, guardrails, execute, SSE stream, w
    - Optional: `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL). Every triaged incident is posted with priority, status, matched runbook, a summary and a **Review & approve** button that opens `/incidents/<id>` on the web console; approvals are posted too
    - Optional: `APP_URL` (web console URL used in Slack links; default `https://16bits-omniops.vercel.app`)
    - Optional: `LANGSMITH_API_KEY` (for distributed tracing)
+   - Optional: `DEMO_ACCOUNT=off` disables the public demo login (`admin@16bits.io`): nothing is seeded, sign-in with that email is refused, and the web console hides the demo button. Default `on` so judges can sign in
+   - Rate limiting is on by default (in-memory, per client IP): 10 failed sign-ins per email per 15 min, 20 sign-ups per hour, 60 agent runs (`/execute`, `/stream`) per 10 min, 120 alert webhooks per minute, 30 approvals per minute. Over the limit returns 429 with `Retry-After`. Tune with `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_EXECUTE`, `RATE_LIMIT_WEBHOOK`, `RATE_LIMIT_APPROVE`, or turn off with `RATE_LIMIT=off`
 
 > **Storage:** With `DATABASE_URL` set, incidents, approvals and users are stored in Postgres and survive restarts. Without it, the backend falls back to SQLite, and Render's free tier wipes that file on every restart. Either way, an idempotent boot seeder (`seedDemoData` in `server.ts`) creates the demo operator account (`admin@16bits.io` / `admin123`) and a benchmark incident if the users table is empty.
 
