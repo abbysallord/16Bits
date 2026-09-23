@@ -125,26 +125,26 @@ npx omniops listen --port 8000
 `
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f8f8' }}>
+    <div className="min-h-screen flex flex-col font-sans text-neutral-800" style={{ backgroundColor: '#f4f5f7' }}>
       {/* ============ HEADER ============ */}
       <header
-        className="sticky top-0 z-50"
+        className="sticky top-0 z-50 shadow-sm"
         style={{
-          backgroundColor: '#f8f8f8',
+          backgroundColor: '#ffffff',
           borderBottom: '4px solid #212529',
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Link
               to="/"
-              className="flex items-center justify-center"
+              className="flex items-center justify-center transition-transform hover:scale-105"
               style={{
-                width: 40,
-                height: 40,
+                width: 42,
+                height: 42,
                 backgroundColor: '#212529',
                 color: '#92cc41',
-                boxShadow: '4px 4px 0px rgba(0,0,0,0.4)',
+                boxShadow: '4px 4px 0px rgba(0,0,0,0.3)',
                 textDecoration: 'none',
               }}
             >
@@ -152,15 +152,14 @@ npx omniops listen --port 8000
             </Link>
             <div>
               <Link to="/" style={{ textDecoration: 'none', color: '#212529' }}>
-                <span className="font-arcade" style={{ fontSize: 13, fontWeight: 'bold' }}>
+                <span className="font-arcade text-sm font-bold tracking-tight">
                   16Bits OmniOps
                 </span>
               </Link>
               <div
-                className="font-code text-neutral-600 hidden sm:block"
-                style={{ fontSize: 10, marginTop: 2 }}
+                className="font-mono text-neutral-600 hidden sm:block text-xs mt-0.5"
               >
-                DOCUMENTATION & ENTERPRISE INTEGRATION GUIDE
+                DOCUMENTATION & ENTERPRISE ARCHITECTURE
               </div>
             </div>
           </div>
@@ -190,15 +189,15 @@ npx omniops listen --port 8000
               NPM: omniops@1.0.0
             </a>
             <span
-              className="font-code"
+              className="font-mono text-xs px-2.5 py-1.5"
               style={{
-                fontSize: 10,
-                padding: '4px 8px',
                 border: '2px solid #212529',
                 backgroundColor: backendOnline ? '#e6f9d8' : '#fdf0d5',
+                color: '#212529',
+                fontWeight: 600,
               }}
             >
-              <Database size={10} className="inline mr-1" />
+              <Database size={12} className="inline mr-1.5 -mt-0.5" />
               API: {backendOnline ? 'ONLINE' : 'LOCAL'}
             </span>
           </div>
@@ -206,140 +205,128 @@ npx omniops listen --port 8000
       </header>
 
       {/* ============ DOCS HERO ============ */}
-      <section className="max-w-6xl w-full mx-auto px-4 pt-8 pb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <BookOpen size={16} className="text-neutral-800" />
-          <span className="font-arcade text-neutral-600" style={{ fontSize: 10 }}>
-            DEVELOPER & ARCHITECTURE MANUAL
+      <section className="max-w-6xl w-full mx-auto px-4 pt-10 pb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <BookOpen size={18} className="text-neutral-900" />
+          <span className="font-arcade text-xs text-neutral-700 font-bold">
+            ARCHITECTURE & DEVELOPER GUIDE
           </span>
         </div>
-        <h1 className="font-arcade text-2xl md:text-3xl leading-snug">
-          16Bits OmniOps Reference
+        <h1 className="font-arcade text-xl sm:text-2xl md:text-3xl leading-snug text-neutral-900">
+          16Bits OmniOps Documentation
         </h1>
-        <p className="mt-2 text-neutral-700 font-code text-xs md:text-sm max-w-3xl leading-relaxed">
-          Autonomous multi-agent consensus system for production SRE operations.
-          Combines a 4-agent directed acyclic graph (DAG), dynamic SOP runbook matching,
-          a deterministic safety verification gate, and LangSmith full-lifecycle observability.
+        <p className="mt-3 text-neutral-700 text-sm md:text-base max-w-3xl leading-relaxed">
+          Autonomous multi-agent consensus system for production site reliability engineering.
+          OmniOps pairs a 4-agent Directed Acyclic Graph (DAG) with dynamic SOP runbook matching,
+          a deterministic safety verification gate, and full-lifecycle LangSmith observability.
         </p>
       </section>
 
       {/* ============ MAIN DOCS GRID ============ */}
-      <div className="max-w-6xl w-full mx-auto px-4 pb-16 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* SIDEBAR NAVIGATION */}
-        <aside className="lg:col-span-3 space-y-4">
-          <div className="nes-container with-title" style={{ backgroundColor: '#fff' }}>
+      <div className="max-w-6xl w-full mx-auto px-4 pb-20 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* STICKY SIDEBAR NAVIGATION */}
+        <aside className="lg:col-span-3 space-y-5">
+          <div className="nes-container with-title sticky top-24" style={{ backgroundColor: '#ffffff', padding: '16px' }}>
             <p className="title font-arcade" style={{ fontSize: 9 }}>
-              Navigation
+              Contents
             </p>
-            <nav className="font-code space-y-2 text-xs">
-              <a href="#overview" className="block text-neutral-700 hover:text-black hover:underline">
+            <nav className="space-y-2 text-xs md:text-sm font-medium">
+              <a href="#overview" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 1. System Overview
               </a>
-              <a href="#architecture" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#architecture" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 2. 4-Agent Consensus DAG
               </a>
-              <a href="#cli" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#cli" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 3. CLI & Zero-Install
               </a>
-              <a href="#webhooks" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#webhooks" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 4. Webhook Ingestion
               </a>
-              <a href="#runbooks" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#runbooks" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 5. Dynamic SOP Runbooks
               </a>
-              <a href="#skill" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#skill" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 6. Agentic SKILL.md
               </a>
-              <a href="#api" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#api" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 7. REST API Reference
               </a>
-              <a href="#compliance" className="block text-neutral-700 hover:text-black hover:underline">
+              <a href="#compliance" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 8. Compliance & Governance
               </a>
             </nav>
-          </div>
 
-          <div className="nes-container with-title" style={{ backgroundColor: '#fff' }}>
-            <p className="title font-arcade" style={{ fontSize: 9 }}>
-              Deployment
-            </p>
-            <div className="font-code text-xs space-y-2">
+            <div className="mt-6 pt-4 border-t-2 border-neutral-200 text-xs font-mono space-y-3">
               <div>
-                <span className="font-bold text-neutral-600 block">Render Backend:</span>
+                <span className="font-bold text-neutral-900 block text-xs">Render Backend:</span>
                 <a
                   href="https://one6bits.onrender.com/api/health"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-blue-600 hover:underline break-all"
-                  style={{ fontSize: 10 }}
+                  className="text-blue-700 hover:underline break-all"
                 >
-                  https://one6bits.onrender.com
+                  one6bits.onrender.com
                 </a>
               </div>
               <div>
-                <span className="font-bold text-neutral-600 block">npm Package:</span>
+                <span className="font-bold text-neutral-900 block text-xs">Global Package:</span>
                 <a
                   href="https://www.npmjs.com/package/omniops"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-blue-600 hover:underline break-all"
-                  style={{ fontSize: 10 }}
+                  className="text-blue-700 hover:underline break-all"
                 >
                   npmjs.com/package/omniops
                 </a>
-              </div>
-              <div>
-                <span className="font-bold text-neutral-600 block">Active AI Engine:</span>
-                <span className="text-neutral-800" style={{ fontSize: 10 }}>
-                  Gemini 2.5 Flash + Groq LPU
-                </span>
               </div>
             </div>
           </div>
         </aside>
 
         {/* CONTENT AREA */}
-        <main className="lg:col-span-9 space-y-8">
+        <main className="lg:col-span-9 space-y-10">
           {/* SECTION 1: SYSTEM OVERVIEW */}
-          <section id="overview" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="overview" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               1. System Overview
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-3 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
-                Enterprise downtime costs an estimated <strong>$5,600 per minute</strong>. When high-severity
-                outages trigger at 2:00 AM, the human bottleneck causes an average Mean Time to Resolution (MTTR)
-                of 45 minutes: engineers must manually cross-reference PagerDuty alerts, Datadog dashboards,
-                cloud provider status pages, and tribal-knowledge runbooks.
+                Enterprise infrastructure downtime costs an average of <strong>$5,600 per minute</strong>.
+                When high-severity incidents strike at 2:00 AM, the human bottleneck causes an average
+                Mean Time to Resolution (MTTR) of <strong>45 to 90 minutes</strong>: engineers must manually
+                cross-reference PagerDuty alerts, Datadog dashboards, cloud provider status pages, and tribal-knowledge runbooks.
               </p>
+              
               <div
-                className="p-3 my-3"
+                className="p-4 my-4"
                 style={{
                   backgroundColor: '#f8fafc',
-                  border: '2px solid #212529',
-                  boxShadow: '3px 3px 0px rgba(0,0,0,0.1)',
+                  border: '3px solid #212529',
+                  boxShadow: '4px 4px 0px rgba(0,0,0,0.1)',
                 }}
               >
-                <div className="font-arcade text-xs text-neutral-900 mb-1">
-                  [BENCHMARK COMPARISON]
+                <div className="font-arcade text-xs text-neutral-900 mb-3 tracking-wide">
+                  BENCHMARK: HUMAN SRE VS. 16BITS OMNIOPS
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="p-2 bg-red-50 border border-red-200">
-                    <span className="font-bold text-red-700 block">Manual Human SRE:</span>
-                    <ul className="list-disc list-inside text-neutral-600 mt-1 space-y-1">
-                      <li>Avg MTTR: 45 to 90 minutes</li>
-                      <li>Fragmented cross-system triage</li>
-                      <li>High risk of fat-finger commands</li>
-                      <li>Incomplete post-mortems</li>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm">
+                  <div className="p-3 bg-red-50 border-2 border-red-200">
+                    <span className="font-bold text-red-800 block text-sm mb-1">Manual Human SRE Triage:</span>
+                    <ul className="list-disc list-inside text-neutral-700 space-y-1">
+                      <li>Average MTTR: 45 to 90 minutes</li>
+                      <li>Fragmented cross-system investigation</li>
+                      <li>High risk of fat-finger typos on production</li>
+                      <li>Incomplete, rushed post-mortems</li>
                     </ul>
                   </div>
-                  <div className="p-2 bg-emerald-50 border border-emerald-200">
-                    <span className="font-bold text-emerald-800 block">16Bits OmniOps Swarm:</span>
-                    <ul className="list-disc list-inside text-neutral-700 mt-1 space-y-1">
-                      <li>Avg MTTR: 3.4 seconds</li>
-                      <li>Automated 4-agent consensus DAG</li>
+                  <div className="p-3 bg-emerald-50 border-2 border-emerald-300">
+                    <span className="font-bold text-emerald-900 block text-sm mb-1">16Bits OmniOps Swarm:</span>
+                    <ul className="list-disc list-inside text-neutral-800 space-y-1">
+                      <li>Average MTTR: 3.4 seconds (99% reduction)</li>
+                      <li>Autonomous 4-agent consensus DAG</li>
                       <li>Deterministic safety verification gate</li>
-                      <li>Cryptographically signed audit trail</li>
+                      <li>Cryptographically signed audit trail in SQLite</li>
                     </ul>
                   </div>
                 </div>
@@ -348,94 +335,94 @@ npx omniops listen --port 8000
           </section>
 
           {/* SECTION 2: 4-AGENT CONSENSUS DAG */}
-          <section id="architecture" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="architecture" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               2. 4-Agent Consensus DAG
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-4 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
-                A single prompt to an LLM hallucinated remediation commands or blindly suggests destructive
-                actions without checking corporate safety policies. 16Bits OmniOps partitions the task
-                into four specialized agents executing in a strict directed acyclic graph:
+                A single prompt to a generic LLM hallucinates risky shell commands without checking safety policies.
+                16Bits OmniOps partitions the task into four specialized autonomous agents executing in a strict
+                Directed Acyclic Graph (DAG):
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
                 <div
-                  className="p-3"
+                  className="p-4"
                   style={{
-                    backgroundColor: '#f8fafc',
-                    border: '2px solid #209cee',
+                    backgroundColor: '#f0f9ff',
+                    border: '3px solid #209cee',
                     boxShadow: '3px 3px 0px #209cee',
                   }}
                 >
-                  <div className="font-arcade text-xs text-blue-700 mb-1">
+                  <div className="font-arcade text-xs text-blue-800 mb-1">
                     STAGE 1: PLANNER AGENT
                   </div>
-                  <p className="text-xs text-neutral-700">
-                    Extracts error signatures, assigns an incident category, generates the telemetry probe
-                    sub-tasks, and formats an execution DAG.
+                  <p className="text-xs md:text-sm text-neutral-800 mt-2 leading-relaxed">
+                    Normalizes messy error logs, identifies root error signatures, categorizes the incident domain,
+                    and outputs a structured investigation plan with targeted diagnostic probes.
                   </p>
-                  <div className="mt-2 text-neutral-500 text-xs font-mono">
+                  <div className="mt-3 text-neutral-600 text-xs font-mono font-semibold">
                     Output: Investigation Plan + Diagnostic Probes
                   </div>
                 </div>
 
                 <div
-                  className="p-3"
+                  className="p-4"
                   style={{
-                    backgroundColor: '#f8fafc',
-                    border: '2px solid #ad8bc9',
+                    backgroundColor: '#faf5ff',
+                    border: '3px solid #ad8bc9',
                     boxShadow: '3px 3px 0px #ad8bc9',
                   }}
                 >
-                  <div className="font-arcade text-xs text-purple-700 mb-1">
+                  <div className="font-arcade text-xs text-purple-800 mb-1">
                     STAGE 2: INVESTIGATOR AGENT
                   </div>
-                  <p className="text-xs text-neutral-700">
-                    Gathers live server metrics (CPU, RAM, disk, load averages), inspects active incident queues,
-                    and semantically matches relevant SOP runbooks.
+                  <p className="text-xs md:text-sm text-neutral-800 mt-2 leading-relaxed">
+                    Queries live host telemetry (CPU, RAM, load averages, process uptime), inspects queue backlogs,
+                    and semantically matches the exact Standard Operating Procedure (SOP) runbook.
                   </p>
-                  <div className="mt-2 text-neutral-500 text-xs font-mono">
+                  <div className="mt-3 text-neutral-600 text-xs font-mono font-semibold">
                     Output: Host Telemetry + Matched SOP Runbook
                   </div>
                 </div>
 
                 <div
-                  className="p-3"
+                  className="p-4"
                   style={{
-                    backgroundColor: '#f8fafc',
-                    border: '2px solid #f7d51d',
+                    backgroundColor: '#fefce8',
+                    border: '3px solid #f7d51d',
                     boxShadow: '3px 3px 0px #f7d51d',
                   }}
                 >
-                  <div className="font-arcade text-xs text-yellow-700 mb-1">
+                  <div className="font-arcade text-xs text-yellow-900 mb-1">
                     STAGE 3: VERIFIER GATE (SAFETY)
                   </div>
-                  <p className="text-xs text-neutral-700">
-                    Audits planned actions against safety policies. Destructive commands (rm -rf, DROP, FLUSHALL)
+                  <p className="text-xs md:text-sm text-neutral-800 mt-2 leading-relaxed">
+                    Audits all proposed actions against safety policies. Destructive commands (rm -rf, DROP TABLE, FLUSHALL)
                     are rejected. Any system state mutation halts behind an operator authorization gate.
                   </p>
-                  <div className="mt-2 text-neutral-500 text-xs font-mono">
+                  <div className="mt-3 text-neutral-600 text-xs font-mono font-semibold">
                     Output: Safety Verdict (AWAITING_APPROVAL / RESOLVED)
                   </div>
                 </div>
 
                 <div
-                  className="p-3"
+                  className="p-4"
                   style={{
-                    backgroundColor: '#f8fafc',
-                    border: '2px solid #92cc41',
+                    backgroundColor: '#f0fdf4',
+                    border: '3px solid #92cc41',
                     boxShadow: '3px 3px 0px #92cc41',
                   }}
                 >
-                  <div className="font-arcade text-xs text-green-700 mb-1">
+                  <div className="font-arcade text-xs text-green-800 mb-1">
                     STAGE 4: SYNTHESIZER AGENT
                   </div>
-                  <p className="text-xs text-neutral-700">
-                    Synthesizes the finalized operational playbook, step-by-step remediation shell commands,
-                    rollback instructions, and stakeholder communication memo.
+                  <p className="text-xs md:text-sm text-neutral-800 mt-2 leading-relaxed">
+                    Compiles the finalized remediation playbook, numbered shell execution commands,
+                    rollback instructions, and formats a real-time incident card broadcast to Slack.
                   </p>
-                  <div className="mt-2 text-neutral-500 text-xs font-mono">
+                  <div className="mt-3 text-neutral-600 text-xs font-mono font-semibold">
                     Output: Finalized Runbook + Slack Broadcast
                   </div>
                 </div>
@@ -444,44 +431,48 @@ npx omniops listen --port 8000
           </section>
 
           {/* SECTION 3: CLI & ZERO-INSTALL */}
-          <section id="cli" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="cli" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               3. Global CLI & Zero-Install
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-3 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
                 The 16Bits OmniOps CLI is published globally on the npm registry as{' '}
                 <a
                   href="https://www.npmjs.com/package/omniops"
                   target="_blank"
                   rel="noreferrer"
-                  className="font-bold underline text-blue-600"
+                  className="font-bold underline text-blue-700"
                 >
-                  omniops
+                  omniops@1.0.0
                 </a>
-                . It requires zero local server setup to evaluate an alert, or can connect to your deployed
-                backend gateway via <code className="bg-neutral-100 px-1 border border-neutral-300">OMNIOPS_API_URL</code>.
+                . It requires zero local setup to evaluate an alert, or can connect directly to your backend
+                service via the <code className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-300 font-mono text-xs">OMNIOPS_API_URL</code> environment variable.
               </p>
 
-              <div className="relative">
+              <div className="relative my-3">
                 <div
-                  className="p-3 font-mono text-xs overflow-x-auto"
+                  className="p-4 font-mono text-xs md:text-sm overflow-x-auto leading-relaxed"
                   style={{
                     backgroundColor: '#f8fafc',
-                    border: '2px solid #212529',
-                    color: '#1e293b',
+                    border: '3px solid #212529',
+                    color: '#0f172a',
                   }}
                 >
-                  <div className="text-neutral-500 mb-1"># Global installation</div>
-                  <div>npm install -g omniops</div>
-                  <div className="text-neutral-500 mt-3 mb-1"># Or zero-install via npx</div>
-                  <div>npx omniops "Stripe payment gateway webhook consumer lag &gt; 4000"</div>
-                  <div className="text-neutral-500 mt-3 mb-1"># Pipe production server logs directly</div>
-                  <div>cat /var/log/nginx/error.log | omniops</div>
+                  <div className="text-neutral-500 mb-1"># Global installation (binary: omniops)</div>
+                  <div className="font-bold text-neutral-900">npm install -g omniops</div>
+                  
+                  <div className="text-neutral-500 mt-3 mb-1"># Or zero-install execution via npx</div>
+                  <div className="font-bold text-neutral-900">npx omniops "Stripe payment gateway webhook consumer lag &gt; 4000"</div>
+                  
+                  <div className="text-neutral-500 mt-3 mb-1"># Pipe production server logs directly from stdout</div>
+                  <div className="font-bold text-neutral-900">cat /var/log/nginx/error.log | omniops</div>
+                  
                   <div className="text-neutral-500 mt-3 mb-1"># Sign off and approve remediation for an incident</div>
-                  <div>omniops approve inc-1741234567890 --user "Lead SRE"</div>
+                  <div className="font-bold text-neutral-900">omniops approve inc-1741234567890 --user "Lead SRE"</div>
+                  
                   <div className="text-neutral-500 mt-3 mb-1"># Start continuous alert ingestion daemon</div>
-                  <div>omniops listen --port 8000</div>
+                  <div className="font-bold text-neutral-900">omniops listen --port 8000</div>
                 </div>
                 <button
                   type="button"
@@ -491,17 +482,17 @@ npx omniops listen --port 8000
                       'npm install -g omniops\nnpx omniops "Stripe payment gateway webhook consumer lag > 4000"\ncat /var/log/nginx/error.log | omniops'
                     )
                   }
-                  className="nes-btn nes-btn-xs absolute top-2 right-2 font-code"
-                  style={{ fontSize: 9 }}
+                  className="nes-btn nes-btn-xs absolute top-3 right-3 font-mono"
+                  style={{ fontSize: 10 }}
                 >
                   {copiedKey === 'cli-commands' ? (
                     <>
-                      <CheckCheck size={10} className="inline mr-1 text-green-600" />
+                      <CheckCheck size={12} className="inline mr-1 text-green-700" />
                       COPIED
                     </>
                   ) : (
                     <>
-                      <Copy size={10} className="inline mr-1" />
+                      <Copy size={12} className="inline mr-1" />
                       COPY
                     </>
                   )}
@@ -511,22 +502,25 @@ npx omniops listen --port 8000
           </section>
 
           {/* SECTION 4: WEBHOOK INGESTION */}
-          <section id="webhooks" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="webhooks" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               4. Webhook Ingestion & Slack Dispatch
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-3 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
                 OmniOps provides a universal alert normalization ingestion endpoint. Connect PagerDuty,
                 Datadog, Prometheus Alertmanager, or Stripe webhooks to trigger the 4-agent swarm automatically:
               </p>
 
-              <div className="p-3 font-mono text-xs bg-slate-50 border-2 border-neutral-900 text-neutral-800">
+              <div
+                className="p-4 font-mono text-xs md:text-sm bg-slate-50 border-2 border-neutral-900 text-neutral-900 leading-relaxed"
+                style={{ backgroundColor: '#f8fafc' }}
+              >
                 <span className="font-bold text-neutral-900 block mb-1">
                   POST https://one6bits.onrender.com/api/webhooks/alerts
                 </span>
-                <span className="text-neutral-600 block mb-2">Content-Type: application/json</span>
-                <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap' }}>
+                <span className="text-neutral-500 block mb-3 text-xs">Content-Type: application/json</span>
+                <pre style={{ margin: 0, fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
 {`{
   "source": "pagerduty",
   "title": "Database Read Replica Lag Exceeds 180s",
@@ -537,20 +531,20 @@ npx omniops listen --port 8000
                 </pre>
               </div>
 
-              <p className="text-xs text-neutral-700">
-                When an alert is verified and synthesized, OmniOps automatically formats an incident
+              <p className="text-sm text-neutral-700">
+                When an alert is verified and synthesized, OmniOps automatically formats a rich incident
                 card and broadcasts the remediation playbook to your on-call Slack channel via{' '}
-                <code className="bg-neutral-100 px-1 border border-neutral-300">SLACK_WEBHOOK_URL</code>.
+                <code className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-300 font-mono text-xs">SLACK_WEBHOOK_URL</code>.
               </p>
             </div>
           </section>
 
           {/* SECTION 5: DYNAMIC SOP RUNBOOKS */}
-          <section id="runbooks" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="runbooks" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               5. Dynamic SOP Runbooks
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-4 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
                 SRE teams can author Standard Operating Procedures (SOPs) as standard Markdown documents with
                 YAML frontmatter. OmniOps loads and indexes runbooks dynamically at runtime without requiring
@@ -558,47 +552,47 @@ npx omniops listen --port 8000
               </p>
 
               {/* CURRENT RUNBOOKS LIST */}
-              <div className="p-3 bg-slate-50 border-2 border-neutral-900">
-                <div className="font-arcade text-xs text-neutral-900 mb-2">
-                  [LOADED RUNBOOKS IN MEMORY: {runbooks.length}]
+              <div className="p-4 bg-slate-50 border-2 border-neutral-900">
+                <div className="font-arcade text-xs text-neutral-900 mb-3">
+                  LOADED RUNBOOKS IN MEMORY ({runbooks.length})
                 </div>
                 <div className="space-y-2">
                   {runbooks.map((rb, idx) => (
-                    <div key={idx} className="p-2 bg-white border border-neutral-300 text-xs">
-                      <span className="font-bold text-blue-700">{rb.title}</span>
-                      <span className="text-neutral-500 text-xs ml-2 font-mono">({rb.filename})</span>
+                    <div key={idx} className="p-3 bg-white border border-neutral-300 text-xs md:text-sm flex items-center justify-between">
+                      <span className="font-bold text-blue-800">{rb.title}</span>
+                      <span className="text-neutral-500 text-xs font-mono">({rb.filename})</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* INTERACTIVE SOP UPLOADER */}
-              <form onSubmit={handleUploadSop} className="p-3 bg-white border-2 border-neutral-900 space-y-3">
+              <form onSubmit={handleUploadSop} className="p-4 bg-white border-2 border-neutral-900 space-y-4">
                 <div className="font-arcade text-xs text-neutral-900">
-                  [UPLOAD CUSTOM RUNBOOK TO BACKEND]
+                  UPLOAD CUSTOM RUNBOOK TO BACKEND
                 </div>
                 <div>
-                  <label className="block text-xs font-bold mb-1">FILENAME</label>
+                  <label className="block text-xs font-bold mb-1.5 font-mono">FILENAME</label>
                   <input
                     type="text"
-                    className="nes-input text-xs"
+                    className="nes-input text-xs font-mono"
                     value={uploadFilename}
                     onChange={(e) => setUploadFilename(e.target.value)}
                     placeholder="sop-custom-service.md"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold mb-1">MARKDOWN SOP CONTENT</label>
+                  <label className="block text-xs font-bold mb-1.5 font-mono">MARKDOWN SOP CONTENT</label>
                   <textarea
-                    className="nes-textarea text-xs font-mono"
-                    rows={6}
+                    className="nes-textarea text-xs font-mono leading-relaxed"
+                    rows={7}
                     value={uploadContent}
                     onChange={(e) => setUploadContent(e.target.value)}
                   />
                 </div>
                 {uploadStatus && (
                   <div
-                    className="p-2 text-xs font-mono"
+                    className="p-3 text-xs font-mono"
                     style={{
                       border: '2px solid #212529',
                       backgroundColor: uploadStatus.startsWith('[SUCCESS]') ? '#e6f9d8' : '#fdf0d5',
@@ -620,25 +614,25 @@ npx omniops listen --port 8000
           </section>
 
           {/* SECTION 6: AGENTIC SKILL.MD */}
-          <section id="skill" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="skill" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               6. Agentic SKILL.md for AI Coding Assistants
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-3 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
                 External AI coding assistants like Claude Code, Cursor, Antigravity, or Cline can be equipped
                 with the official <strong>16Bits OmniOps Skill</strong>. Drop this specification into your
                 skills directory to allow your local agents to invoke OmniOps autonomously:
               </p>
 
-              <div className="relative">
+              <div className="relative my-3">
                 <pre
-                  className="p-3 font-mono text-xs overflow-x-auto"
+                  className="p-4 font-mono text-xs md:text-sm overflow-x-auto leading-relaxed"
                   style={{
                     backgroundColor: '#f8fafc',
-                    border: '2px solid #212529',
-                    color: '#1e293b',
-                    maxHeight: 280,
+                    border: '3px solid #212529',
+                    color: '#0f172a',
+                    maxHeight: 320,
                     margin: 0,
                     whiteSpace: 'pre-wrap',
                   }}
@@ -648,17 +642,17 @@ npx omniops listen --port 8000
                 <button
                   type="button"
                   onClick={() => handleCopy('skill-md', SKILL_MD_TEXT)}
-                  className="nes-btn nes-btn-xs absolute top-2 right-2 font-code"
-                  style={{ fontSize: 9 }}
+                  className="nes-btn nes-btn-xs absolute top-3 right-3 font-mono"
+                  style={{ fontSize: 10 }}
                 >
                   {copiedKey === 'skill-md' ? (
                     <>
-                      <CheckCheck size={10} className="inline mr-1 text-green-600" />
+                      <CheckCheck size={12} className="inline mr-1 text-green-700" />
                       COPIED SKILL.MD
                     </>
                   ) : (
                     <>
-                      <Copy size={10} className="inline mr-1" />
+                      <Copy size={12} className="inline mr-1" />
                       COPY SKILL.MD
                     </>
                   )}
@@ -668,12 +662,12 @@ npx omniops listen --port 8000
           </section>
 
           {/* SECTION 7: REST API REFERENCE */}
-          <section id="api" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="api" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               7. REST API Reference
             </p>
-            <div className="font-code text-xs text-neutral-800 space-y-3 leading-relaxed overflow-x-auto">
-              <table className="nes-table is-bordered w-full text-xs">
+            <div className="text-xs md:text-sm text-neutral-800 space-y-3 leading-relaxed overflow-x-auto">
+              <table className="nes-table is-bordered w-full text-xs md:text-sm">
                 <thead>
                   <tr>
                     <th className="font-arcade" style={{ fontSize: 8 }}>METHOD</th>
@@ -683,48 +677,48 @@ npx omniops listen --port 8000
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="font-bold text-blue-700">GET</td>
-                    <td className="font-mono">/api/health</td>
+                    <td className="font-bold text-blue-700 font-mono">GET</td>
+                    <td className="font-mono text-xs">/api/health</td>
                     <td>Health status, active AI provider, and database state</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-green-700">POST</td>
-                    <td className="font-mono">/api/auth/login</td>
+                    <td className="font-bold text-green-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/auth/login</td>
                     <td>Authenticate operator & return signed JWT bearer token</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-blue-700">GET</td>
-                    <td className="font-mono">/api/incidents</td>
+                    <td className="font-bold text-blue-700 font-mono">GET</td>
+                    <td className="font-mono text-xs">/api/incidents</td>
                     <td>Fetch recent incidents and operational audit trails</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-green-700">POST</td>
-                    <td className="font-mono">/api/agents/execute</td>
+                    <td className="font-bold text-green-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/agents/execute</td>
                     <td>Synchronous 4-agent swarm orchestration endpoint</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-green-700">POST</td>
-                    <td className="font-mono">/api/agents/stream</td>
+                    <td className="font-bold text-green-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/agents/stream</td>
                     <td>Server-Sent Events (SSE) streaming agent execution log</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-yellow-700">POST</td>
-                    <td className="font-mono">/api/agents/approve</td>
+                    <td className="font-bold text-yellow-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/agents/approve</td>
                     <td>Cryptographic operator sign-off on awaiting actions</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-blue-700">GET</td>
-                    <td className="font-mono">/api/agents/runbooks</td>
+                    <td className="font-bold text-blue-700 font-mono">GET</td>
+                    <td className="font-mono text-xs">/api/agents/runbooks</td>
                     <td>List all loaded Standard Operating Procedure runbooks</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-green-700">POST</td>
-                    <td className="font-mono">/api/agents/runbooks</td>
+                    <td className="font-bold text-green-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/agents/runbooks</td>
                     <td>Upload and index a new custom Markdown SOP runbook</td>
                   </tr>
                   <tr>
-                    <td className="font-bold text-green-700">POST</td>
-                    <td className="font-mono">/api/webhooks/alerts</td>
+                    <td className="font-bold text-green-700 font-mono">POST</td>
+                    <td className="font-mono text-xs">/api/webhooks/alerts</td>
                     <td>Universal alert ingestion (PagerDuty, Datadog, Prometheus)</td>
                   </tr>
                 </tbody>
@@ -733,26 +727,26 @@ npx omniops listen --port 8000
           </section>
 
           {/* SECTION 8: COMPLIANCE & GOVERNANCE */}
-          <section id="compliance" className="nes-container with-title scroll-mt-20" style={{ backgroundColor: '#fff' }}>
+          <section id="compliance" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
             <p className="title font-arcade" style={{ fontSize: 10 }}>
               8. Compliance, Security & Governance
             </p>
-            <div className="font-code text-xs md:text-sm text-neutral-800 space-y-3 leading-relaxed">
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
                 In high-stakes enterprise environments (banking, healthcare, critical infrastructure),
                 unsupervised AI execution is a severe compliance violation. OmniOps enforces three strict
                 governance tiers:
               </p>
-              <ul className="list-disc list-inside space-y-2 text-xs">
+              <ul className="list-disc list-inside space-y-2 text-sm">
                 <li>
                   <strong>Deterministic Destructive Command Block:</strong> System interceptors inspect all
-                  remediation commands. Keywords like <code className="bg-neutral-100 px-1 border border-neutral-300">rm -rf</code>,{' '}
-                  <code className="bg-neutral-100 px-1 border border-neutral-300">DROP DATABASE</code>, or{' '}
-                  <code className="bg-neutral-100 px-1 border border-neutral-300">FLUSHALL</code> are unconditionally purged.
+                  remediation commands. Keywords like <code className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-300 font-mono text-xs">rm -rf</code>,{' '}
+                  <code className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-300 font-mono text-xs">DROP DATABASE</code>, or{' '}
+                  <code className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-300 font-mono text-xs">FLUSHALL</code> are unconditionally purged.
                 </li>
                 <li>
                   <strong>Human-in-the-Loop Sign-Off:</strong> Remediation actions that mutate production
-                  state halt in the <code className="bg-yellow-100 px-1 border border-yellow-300">AWAITING_APPROVAL</code> state.
+                  state halt in the <code className="bg-yellow-100 px-1.5 py-0.5 border border-yellow-300 font-mono text-xs text-yellow-900">AWAITING_APPROVAL</code> state.
                   An authorized operator must sign off via JWT Bearer token or CLI approval command.
                 </li>
                 <li>
@@ -774,29 +768,29 @@ npx omniops listen --port 8000
           color: '#e7e7e7',
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="max-w-6xl mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <div className="font-arcade" style={{ fontSize: 9, color: '#92cc41', marginBottom: 10 }}>
+            <div className="font-arcade text-xs text-green-400 mb-3">
               ENTERPRISE SRE SWARM
             </div>
-            <p className="font-code text-xs text-neutral-400 leading-relaxed">
+            <p className="text-xs md:text-sm text-neutral-300 leading-relaxed">
               16Bits OmniOps reduces enterprise incident response time from 45 minutes to 3.4 seconds
               through a multi-agent consensus DAG.
             </p>
           </div>
           <div>
-            <div className="font-arcade" style={{ fontSize: 9, color: '#209cee', marginBottom: 10 }}>
+            <div className="font-arcade text-xs text-blue-400 mb-3">
               RESOURCES
             </div>
-            <ul className="font-code text-xs space-y-2">
+            <ul className="text-xs md:text-sm space-y-2 font-mono">
               <li>
-                <Link to="/" className="text-neutral-400 hover:text-white">
-                  ▸ Swarm Console
+                <Link to="/" className="text-neutral-300 hover:text-white transition-colors">
+                  &gt; Swarm Console
                 </Link>
               </li>
               <li>
-                <Link to="/docs" className="text-neutral-400 hover:text-white">
-                  ▸ Documentation
+                <Link to="/docs" className="text-neutral-300 hover:text-white transition-colors">
+                  &gt; Documentation
                 </Link>
               </li>
               <li>
@@ -804,28 +798,28 @@ npx omniops listen --port 8000
                   href="https://www.npmjs.com/package/omniops"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-neutral-400 hover:text-white"
+                  className="text-neutral-300 hover:text-white transition-colors"
                 >
-                  ▸ npm: omniops@1.0.0
+                  &gt; npm: omniops@1.0.0
                 </a>
               </li>
             </ul>
           </div>
           <div>
-            <div className="font-arcade" style={{ fontSize: 9, color: '#f7d51d', marginBottom: 10 }}>
+            <div className="font-arcade text-xs text-yellow-400 mb-3">
               SUBMISSION STATUS
             </div>
-            <p className="font-code text-xs text-neutral-400 leading-relaxed">
+            <p className="text-xs md:text-sm text-neutral-300 leading-relaxed font-mono">
               Theme: Agentic AI & Intelligent Systems
               <br />
               Status: Production Verified
               <br />
-              Live Deployment: Render + Vercel
+              Deployments: Render + Vercel + npm
             </p>
           </div>
         </div>
-        <div className="text-center pb-4 font-code" style={{ fontSize: 9, color: '#888' }}>
-          16Bits OmniOps · Production Release 1.0.0
+        <div className="text-center pb-6 text-xs text-neutral-400 font-mono border-t border-neutral-700 pt-4">
+          16Bits OmniOps · Production Release 1.0.0 · MIT License
         </div>
       </footer>
     </div>
