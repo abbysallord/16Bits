@@ -55,7 +55,7 @@ class AIService {
           model: process.env.DEFAULT_MODEL || 'qwen/qwen3.8-27b',
           messages,
           temperature: 0.1,
-          max_tokens: 2048,
+          max_tokens: 450,
         })
         return res.choices[0]?.message?.content || ''
       } catch (err: any) {

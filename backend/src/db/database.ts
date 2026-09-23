@@ -30,7 +30,7 @@ db.exec(`
     description TEXT NOT NULL,
     priority TEXT NOT NULL CHECK(priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
     category TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ANALYZING', 'RESOLVED', 'FAILED')),
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ANALYZING', 'AWAITING_APPROVAL', 'RESOLVED', 'FAILED')),
     resolution TEXT,
     user_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

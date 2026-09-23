@@ -38,7 +38,9 @@ export interface SwarmResult {
   incidentId: string
   title: string
   priority: string
-  status: 'RESOLVED' | 'FAILED'
+  status: 'AWAITING_APPROVAL' | 'RESOLVED' | 'FAILED'
+  requiresApproval?: boolean
+  matchedRunbookTitle?: string
   logs: AgentStepLog[]
   finalResolution: string
   executionDurationMs: number
@@ -163,3 +165,27 @@ export async function streamSwarm(
     onError(err.message || 'Stream failed')
   }
 }
+
+export async function approveIncident(incidentId: string, approvedBy: string = 'Lead Operator'): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/agents/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ incidentId, approvedBy })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to approve incident')
+  }
+}
+
+export async function fetchRunbooks(): Promise<Array<{ filename: string; title: string; content: string }>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agents/runbooks`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.runbooks || []
+  } catch {
+    return []
+  }
+}
+

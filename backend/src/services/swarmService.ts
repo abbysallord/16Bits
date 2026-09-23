@@ -1,6 +1,8 @@
+import os from 'os'
+import crypto from 'crypto'
 import { db } from '../db/database.js'
 import { aiService } from './aiService.js'
-import crypto from 'crypto'
+import { runbookService } from './runbookService.js'
 
 export interface AgentStepLog {
   agentName: string
@@ -15,40 +17,24 @@ export interface SwarmExecutionResult {
   incidentId: string
   title: string
   priority: string
-  status: 'RESOLVED' | 'FAILED'
+  status: 'AWAITING_APPROVAL' | 'RESOLVED' | 'FAILED'
+  requiresApproval: boolean
+  matchedRunbookTitle: string
   logs: AgentStepLog[]
   finalResolution: string
   executionDurationMs: number
 }
 
-// Simulated Enterprise Knowledge Base Tools
-const EnterpriseTools = {
-  getSlaPolicy(priority: string) {
+// Enterprise SLA Policy Matrix
+const SlaPolicyMatrix = {
+  getPolicy(priority: string) {
     switch (priority) {
       case 'CRITICAL':
-        return { responseTarget: '15 minutes', resolutionTarget: '2 hours', escalation: 'VP Operations & Incident Commander' }
+        return { responseTarget: '15 minutes', resolutionTarget: '2 hours', escalationTarget: 'VP Operations & Incident Commander', maxAllowedDowntimeMin: 15 }
       case 'HIGH':
-        return { responseTarget: '1 hour', resolutionTarget: '8 hours', escalation: 'Engineering Lead' }
+        return { responseTarget: '1 hour', resolutionTarget: '8 hours', escalationTarget: 'Lead Site Reliability Engineer', maxAllowedDowntimeMin: 60 }
       default:
-        return { responseTarget: '4 hours', resolutionTarget: '24 hours', escalation: 'Tier 2 Support' }
-    }
-  },
-
-  checkSystemHealth() {
-    return {
-      apiGateway: 'HEALTHY (p99 42ms)',
-      authService: 'OPERATIONAL',
-      paymentWebhookQueue: 'DEGRADED (Queue Depth: 4,120 items; Rate Limit Throttle detected on upstream provider)',
-      databaseCluster: 'HEALTHY (Replica Lag: 0ms)'
-    }
-  },
-
-  getCustomerProfile(query: string) {
-    return {
-      tier: 'ENTERPRISE PLATINUM',
-      mrr: '$48,000 / mo',
-      contractedSlaUptime: '99.95%',
-      dedicatedAccountManager: 'Sarah Jenkins (s.jenkins@enterprise.com)'
+        return { responseTarget: '4 hours', resolutionTarget: '24 hours', escalationTarget: 'Tier 2 Support', maxAllowedDowntimeMin: 240 }
     }
   }
 }
@@ -103,77 +89,92 @@ export class SwarmService {
     // AGENT 1: PLANNER AGENT
     // ==========================================
     const planPrompt = `
-You are the Lead Planning Agent in an autonomous enterprise incident response swarm.
+You are the Lead Planning Agent in an autonomous enterprise operations swarm.
 Incident Details:
 - Title: ${title}
 - Description: ${description}
 - Priority: ${priority}
 - Category: ${category}
 
-Decompose this incident into a concrete 3-stage tactical resolution plan.
-1. What internal telemetry/data must be investigated?
-2. What compliance/SLA guardrails apply?
-3. What final remediation should be formulated?
+Decompose this incident into a concrete 3-stage tactical resolution plan:
+1. Telemetry & Root Cause Investigation Plan
+2. Safety & SLA Compliance Guardrail Requirements
+3. Formulation of Remediation Actions & Customer Communication
 
-Be concise, technical, and objective. Maximum 150 words.
+Be concise, technical, and objective. Maximum 140 words.
 `
     const planThought = await aiService.complete(planPrompt, "You are an expert enterprise operations planning coordinator.")
     recordStep(
       'Planner Agent',
       1,
       planThought,
-      'Decomposed incident into investigation DAG and telemetry requirements.'
+      'Decomposed incident into structured execution DAG and investigative vectors.'
     )
 
     // ==========================================
     // AGENT 2: INVESTIGATOR & TOOL AGENT
     // ==========================================
-    const slaData = EnterpriseTools.getSlaPolicy(priority)
-    const telemetry = EnterpriseTools.checkSystemHealth()
-    const customerInfo = EnterpriseTools.getCustomerProfile(title)
+    // 1. Fetch real hardware & host telemetry
+    const hostTelemetry = {
+      platform: os.platform(),
+      hostname: os.hostname(),
+      cpuCores: os.cpus().length,
+      freeMemoryMb: Math.round(os.freemem() / (1024 * 1024)),
+      totalMemoryMb: Math.round(os.totalmem() / (1024 * 1024)),
+      processUptimeSeconds: Math.round(process.uptime()),
+      systemLoad: os.loadavg().map(n => Number(n.toFixed(2)))
+    }
+
+    // 2. Fetch matched SOP runbook from local disk
+    const matchedRunbook = runbookService.findBestRunbook(title + ' ' + description)
+    const slaPolicy = SlaPolicyMatrix.getPolicy(priority)
 
     const toolPrompt = `
-You are the Investigator Agent with access to live enterprise telemetry.
-You executed queries and retrieved:
-- SLA Policy: ${JSON.stringify(slaData)}
-- System Telemetry: ${JSON.stringify(telemetry)}
-- Customer Tier: ${JSON.stringify(customerInfo)}
-- Incident Description: ${description}
+You are the Investigator Agent with access to live host telemetry and enterprise SOP runbooks.
+You retrieved:
+- Host Telemetry: ${JSON.stringify(hostTelemetry)}
+- Enterprise SLA: ${JSON.stringify(slaPolicy)}
+- Matched SOP Runbook: "${matchedRunbook?.title}"
+- Runbook Procedures:
+${matchedRunbook?.content.slice(0, 600)}
 
-Analyze the root cause based on the telemetry and explain the failure mechanism. Maximum 120 words.
+Incident: "${title}" - "${description}"
+
+Synthesize the failure mechanism based on the telemetry and the matching SOP runbook. Maximum 120 words.
 `
     const toolThought = await aiService.complete(toolPrompt, "You are a senior site reliability and systems investigator.")
     recordStep(
       'Investigator Agent',
       2,
       toolThought,
-      'Queried system telemetry, SLA database, and customer tier profile.',
-      { slaData, telemetry, customerInfo }
+      `Queried live OS telemetry and retrieved SOP Runbook: "${matchedRunbook?.title}".`,
+      { hostTelemetry, slaPolicy, runbookTitle: matchedRunbook?.title }
     )
 
     // ==========================================
-    // AGENT 3: VERIFICATION & GUARDRAIL AGENT
+    // AGENT 3: VERIFICATION & GUARDRAIL AGENT (The Safety Gate)
     // ==========================================
     const verifierPrompt = `
-You are the Safety & Compliance Verification Agent (The Guardrail Gate).
-You must verify the findings from the Investigator Agent:
-- Root Cause Finding: ${toolThought}
-- Customer Contract SLA: ${slaData.resolutionTarget}
-- Severity: ${priority}
+You are the Safety & Compliance Verification Guardrail Gate.
+Evaluate the proposed investigation against enterprise safety:
+- Root Cause: ${toolThought}
+- Runbook Constraints: "${matchedRunbook?.title}"
+- Contractual SLA Deadline: ${slaPolicy.resolutionTarget}
+- Incident Severity: ${priority}
 
 Evaluate:
-1. Does the proposed action meet SLA deadlines?
-2. Are customer data confidentiality policies respected?
-3. Is human executive sign-off required?
+1. Does the action require human confirmation before executing?
+2. Does it risk breaching the ${slaPolicy.resolutionTarget} SLA window?
+3. Are safety guardrails satisfied?
 
-Return an explicit verdict: [VERIFIED & SAFE TO PROCEED] or [CONDITIONAL APPROVAL]. Maximum 100 words.
+Return an explicit verdict: [CONDITIONAL APPROVAL: OPERATOR AUTHORIZATION REQUIRED] or [VERIFIED & SAFE TO EXECUTE]. Maximum 100 words.
 `
     const verifierThought = await aiService.complete(verifierPrompt, "You are a strict enterprise compliance and risk verification officer.")
     recordStep(
       'Verification Agent',
       3,
       verifierThought,
-      'Verified action plan against enterprise SLA, security compliance, and safety gates.'
+      'Audited action against enterprise SLA constraints, security boundaries, and authorization gates.'
     )
 
     // ==========================================
@@ -181,34 +182,39 @@ Return an explicit verdict: [VERIFIED & SAFE TO PROCEED] or [CONDITIONAL APPROVA
     // ==========================================
     const synthPrompt = `
 You are the Synthesizer & Dispatcher Agent.
-Synthesize the final resolution for Incident: "${title}".
-Context:
+Synthesize the final resolution for: "${title}".
+Inputs:
 - Priority: ${priority}
-- Root Cause: ${toolThought}
-- Compliance Verification: ${verifierThought}
+- Telemetry & Root Cause: ${toolThought}
+- Matching Runbook: ${matchedRunbook?.title}
+- Compliance Gate: ${verifierThought}
 
 Produce a structured markdown resolution containing:
-1. Executive Incident Summary
-2. Immediate Remediation Actions (Numbered Steps)
-3. Automated Stakeholder Communication Message
-4. Post-Mortem Preventive Measures
+1. **Executive Incident Summary** (Plain English)
+2. **Immediate Remediation Playbook** (Numbered technical action steps from runbook)
+3. **Automated Stakeholder Communication Message** (Client-ready update email)
+4. **Post-Mortem Preventive Rules** (Long-term architectural defense)
 
-Keep it professional, crisp, and high-impact.
+Keep it crisp, professional, and ready for immediate deployment.
 `
     const finalResolution = await aiService.complete(synthPrompt, "You are the chief operations synthesizer and communications dispatcher.")
+    
+    const requiresApproval = priority === 'CRITICAL' || priority === 'HIGH'
+    const finalStatus = requiresApproval ? 'AWAITING_APPROVAL' : 'RESOLVED'
+
     recordStep(
       'Synthesizer Agent',
       4,
-      'Final resolution synthesized and validated across all agent consensus vectors.',
-      'Dispatched automated remediation playbook and updated incident record.'
+      `Final resolution synthesized. Security status: ${finalStatus}.`,
+      requiresApproval ? 'Action staged. Waiting for Human Operator authorization.' : 'Remediation dispatched and incident marked resolved.'
     )
 
-    // Save final resolution & update status to RESOLVED in DB
+    // Save final resolution in DB
     db.prepare(`
       UPDATE incidents
-      SET status = 'RESOLVED', resolution = ?, updated_at = CURRENT_TIMESTAMP
+      SET status = ?, resolution = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(finalResolution, incidentId)
+    `).run(finalStatus, finalResolution, incidentId)
 
     const executionDurationMs = Date.now() - startTime
 
@@ -216,11 +222,31 @@ Keep it professional, crisp, and high-impact.
       incidentId,
       title,
       priority,
-      status: 'RESOLVED',
+      status: finalStatus,
+      requiresApproval,
+      matchedRunbookTitle: matchedRunbook?.title || 'Standard Enterprise SOP',
       logs,
       finalResolution,
       executionDurationMs
     }
+  }
+
+  public approveIncident(incidentId: string, approvedBy: string): void {
+    db.prepare(`
+      UPDATE incidents
+      SET status = 'RESOLVED', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(incidentId)
+
+    const logId = crypto.randomUUID()
+    db.prepare(`
+      INSERT INTO agent_logs (id, incident_id, agent_name, step_number, thought, action)
+      VALUES (?, ?, 'Human Operator', 5, ?, 'Remediation executed and incident closed.')
+    `).run(
+      logId,
+      incidentId,
+      `Human Operator (${approvedBy}) digitally authorized remediation plan after inspecting agent consensus.`
+    )
   }
 }
 

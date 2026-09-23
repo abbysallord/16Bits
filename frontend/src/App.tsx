@@ -23,6 +23,7 @@ import {
   checkBackendHealth,
   fetchIncidents,
   streamSwarm,
+  approveIncident
 } from './services/api'
 import type {
   Incident,
@@ -40,6 +41,8 @@ export default function App() {
   const [isExecuting, setIsExecuting] = useState<boolean>(false)
   const [finalResult, setFinalResult] = useState<SwarmResult | null>(null)
   const [copied, setCopied] = useState<boolean>(false)
+  const [isApproving, setIsApproving] = useState<boolean>(false)
+  const [approvedLocally, setApprovedLocally] = useState<boolean>(false)
 
   // Incident form state
   const [title, setTitle] = useState<string>('Payment Webhook Ingestion Throttle on Stripe Gateway')
@@ -91,6 +94,20 @@ export default function App() {
         alert(`Swarm execution error: ${err}`)
       }
     )
+  }
+
+  const handleApprove = async () => {
+    if (!finalResult) return
+    setIsApproving(true)
+    try {
+      await approveIncident(finalResult.incidentId, 'Lead Operator (Dhanush)')
+      setApprovedLocally(true)
+      loadIncidents()
+    } catch (err: any) {
+      alert(`Approval error: ${err.message}`)
+    } finally {
+      setIsApproving(false)
+    }
   }
 
   const selectBenchmark = (sampleTitle: string, sampleDesc: string, samplePriority: 'CRITICAL' | 'HIGH' | 'MEDIUM') => {
@@ -459,6 +476,35 @@ export default function App() {
                     )}
                   </button>
                 </div>
+
+                {/* Human-in-the-Loop Authorization Gate */}
+                {finalResult.status === 'AWAITING_APPROVAL' && !approvedLocally ? (
+                  <div className="p-4 rounded-xl border-2 border-amber-500 bg-amber-950/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[4px_4px_0px_#f59e0b]">
+                    <div>
+                      <div className="flex items-center gap-2 font-bold text-amber-300 text-sm font-mono">
+                        <ShieldCheck className="h-4 w-4 text-amber-400" />
+                        <span>HUMAN AUTHORIZATION REQUIRED (SLA Guardrail Gate)</span>
+                      </div>
+                      <p className="text-xs text-amber-200/80 mt-1">
+                        Remediation involves infrastructure modifications. Compliance policy requires digital sign-off before dispatching commands.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleApprove}
+                      disabled={isApproving}
+                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-lg text-xs transition shadow-[2px_2px_0px_#000] shrink-0"
+                    >
+                      {isApproving ? 'Authorizing...' : 'Authorize Execution →'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 flex items-center gap-2 text-xs text-emerald-300 font-mono">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    <span>Remediation Plan Authorized by Human Operator • Signed & Committed to SQLite Audit Trail</span>
+                  </div>
+                )}
+
                 <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800 text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap max-h-[400px] overflow-y-auto font-sans">
                   {finalResult.finalResolution}
                 </div>
