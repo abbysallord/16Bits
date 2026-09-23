@@ -1,27 +1,329 @@
 @import "tailwindcss";
 @import "nes.css/css/nes.min.css";
 
+/* ==========================================================================
+   DESIGN TOKENS — two visual identities driven by [data-theme] on <html>
+   ========================================================================== */
+
+:root,
+[data-theme="retro"] {
+  --bg: #f8f8f8;
+  --bg-panel: #ffffff;
+  --bg-inset: #f4f4f4;
+  --bg-console: #0f0f0f;
+  --ink: #212529;
+  --ink-dim: #4a4a4a;
+  --ink-faint: #6b6b6b;
+  --border: #212529;
+  --border-soft: #d3d3d3;
+  --accent: #209cee;
+  --accent-ink: #ffffff;
+  --success: #92cc41;
+  --success-ink: #212529;
+  --warning: #f7d51d;
+  --warning-ink: #212529;
+  --danger: #e76e55;
+  --danger-ink: #ffffff;
+  --purple: #ad8bc9;
+  --accent-soft: #dbeafe;
+  --success-soft: #e6f9d8;
+  --warning-soft: #fdf6d8;
+  --danger-soft: #fde3e0;
+  --purple-soft: #f3e8ff;
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --console-ink: #c5e1a5;
+  --console-green: #92cc41;
+  --console-blue: #209cee;
+  --console-purple: #ad8bc9;
+  --console-faint: #666666;
+  --overlay: rgba(33, 37, 41, 0.55);
+}
+
+[data-theme="mission"] {
+  --bg: #0b1220;
+  --bg-panel: #111c30;
+  --bg-inset: #0a101d;
+  --bg-console: #060b14;
+  --ink: #d7e3f4;
+  --ink-dim: #8ba3c7;
+  --ink-faint: #5d7397;
+  --border: #2a3b5a;
+  --border-soft: #1c2a44;
+  --accent: #4da3ff;
+  --accent-ink: #04101f;
+  --success: #57d977;
+  --success-ink: #04170b;
+  --warning: #ffc857;
+  --warning-ink: #1d1200;
+  --danger: #ff6b6b;
+  --danger-ink: #1f0505;
+  --purple: #b18cff;
+  --accent-soft: rgba(77, 163, 255, 0.14);
+  --success-soft: rgba(87, 217, 119, 0.12);
+  --warning-soft: rgba(255, 200, 87, 0.12);
+  --danger-soft: rgba(255, 107, 107, 0.12);
+  --purple-soft: rgba(177, 140, 255, 0.12);
+  --shadow-color: rgba(0, 0, 0, 0.55);
+  --console-ink: #9fd6a8;
+  --console-green: #57d977;
+  --console-blue: #4da3ff;
+  --console-purple: #b18cff;
+  --console-faint: #3d5273;
+  --overlay: rgba(2, 6, 14, 0.7);
+}
+
 @layer base {
   body {
-    background-color: #f8f8f8;
-    color: #212529;
-    font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
-/* Typography helpers */
+/* ==========================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+
+.font-display,
 .font-arcade {
-  font-family: 'Press Start 2P', monospace;
+  font-family: "Press Start 2P", monospace;
+}
+
+[data-theme="mission"] .font-display,
+[data-theme="mission"] .font-arcade {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.09em;
 }
 
 .font-code {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
 }
 
-/* NES sketch helpers */
-.nes-container-tight {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
+/* ==========================================================================
+   PRIMITIVES — every page renders through these; tokens do the theming
+   ========================================================================== */
+
+.panel {
+  position: relative;
+  background: var(--bg-panel);
+  border: 3px solid var(--border);
+  box-shadow: 5px 5px 0 var(--shadow-color);
+  padding: 22px;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.panel-flush {
+  box-shadow: none;
+}
+
+.panel-title {
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  background: var(--bg-panel);
+  padding: 0 7px;
+  font-size: 9px;
+  color: var(--ink);
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="mission"] .panel {
+  box-shadow: 0 0 0 1px rgba(77, 163, 255, 0.06), 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.btn {
+  display: inline-block;
+  padding: 7px 12px;
+  border: 3px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 3px 3px 0 var(--shadow-color);
+  line-height: 1.4;
+  user-select: none;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.25s ease;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--shadow-color);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn-success {
+  background: var(--success);
+  color: var(--success-ink);
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: var(--warning-ink);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: var(--danger-ink);
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.btn-xs {
+  padding: 4px 8px;
+  font-size: 8px;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 9px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border: 2px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.badge-accent {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.badge-success {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--ink);
+}
+
+.badge-warning {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--ink);
+}
+
+.badge-danger {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--ink);
+}
+
+.badge-purple {
+  border-color: var(--purple);
+  background: var(--purple-soft);
+  color: var(--ink);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 3px solid var(--border);
+  color: var(--ink);
+  padding: 8px 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.25s ease;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--accent);
+}
+
+.textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.radio-row input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.console {
+  background: var(--bg-console);
+  border: 3px solid var(--border);
+  color: var(--console-ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  border: 2px solid var(--border);
+  padding: 6px 8px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  text-align: left;
+}
+
+.table th {
+  background: var(--bg-inset);
+}
+
+.link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+hr.rule {
+  border: none;
+  border-top: 2px solid var(--border-soft);
+  margin: 14px 0;
+}
+
+/* Compat shims while legacy nes-* classes are migrated off */
+.nes-btn-xs {
+  padding: 4px 8px;
+  font-size: 9px;
 }
 
 .nes-btn-sm {
@@ -29,29 +331,52 @@
   font-size: 10px;
 }
 
-.nes-btn-xs {
-  padding: 4px 8px;
-  font-size: 9px;
-}
+/* ==========================================================================
+   MOTION
+   ========================================================================== */
 
-/* Blinking terminal cursor */
 @keyframes nes-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .blink {
   animation: nes-blink 1s step-end infinite;
 }
 
-/* Pixel scrollbar */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   SCROLLBAR
+   ========================================================================== */
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #d4d4d4;
+  background: var(--bg-inset);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #212529;
+  background: var(--border);
 }

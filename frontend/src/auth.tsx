@@ -114,12 +114,12 @@ function Field(props: {
   onChange: (v: string) => void
 }) {
   return (
-    <div className="nes-field" style={{ marginBottom: 8 }}>
-      <label htmlFor={props.id} className="font-arcade" style={{ fontSize: 8 }}>{props.label}</label>
+    <div style={{ marginBottom: 8 }}>
+      <label htmlFor={props.id} className="font-display block mb-1" style={{ fontSize: 8 }}>{props.label}</label>
       <input
         id={props.id}
         type={props.type}
-        className="nes-input font-code"
+        className="input"
         style={{ fontSize: 12 }}
         value={props.value}
         autoComplete={props.autoComplete}
@@ -184,23 +184,23 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
       aria-modal="true"
       aria-label="Operator sign-in"
       className="fixed inset-0 flex items-center justify-center px-4"
-      style={{ backgroundColor: 'rgba(33,37,41,0.55)', zIndex: 100 }}
+      style={{ backgroundColor: 'var(--overlay)', zIndex: 100 }}
       onClick={onCancel}
     >
       <div
-        className="nes-container with-title w-full"
-        style={{ backgroundColor: '#fff', maxWidth: 420 }}
+        className="panel w-full relative"
+        style={{ maxWidth: 420 }}
         onClick={(ev) => ev.stopPropagation()}
       >
-        <p className="title font-arcade" style={{ fontSize: 10 }}>
-          <ShieldCheck size={12} className="inline mr-1" />
+        <p className="font-display absolute" style={{ top: -9, left: 12, fontSize: 9, backgroundColor: 'var(--bg-panel)', padding: '0 7px' }}>
+          <ShieldCheck size={11} className="inline mr-1 -mt-0.5" />
           OPERATOR ACCESS
         </p>
 
         <div className="flex gap-2" style={{ marginBottom: 12 }}>
           <button
             type="button"
-            className={`nes-btn nes-btn-xs font-arcade ${mode === 'signin' ? 'is-primary' : ''}`}
+            className={`btn btn-xs font-display ${mode === 'signin' ? 'btn-primary' : ''}`}
             style={tabStyle}
             onClick={() => switchMode('signin')}
           >
@@ -208,7 +208,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
           </button>
           <button
             type="button"
-            className={`nes-btn nes-btn-xs font-arcade ${mode === 'register' ? 'is-primary' : ''}`}
+            className={`btn btn-xs font-display ${mode === 'register' ? 'btn-primary' : ''}`}
             style={tabStyle}
             onClick={() => switchMode('register')}
           >
@@ -216,7 +216,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
           </button>
         </div>
 
-        <p className="font-code" style={{ fontSize: 11, color: '#4a4a4a', marginBottom: 12 }}>
+        <p className="font-code" style={{ fontSize: 11, color: 'var(--ink-dim)', marginBottom: 12 }}>
           {mode === 'signin'
             ? 'Approvals and runbook uploads are signed with your operator identity and written to the audit trail.'
             : 'New accounts get the operator role and can approve incidents and upload runbooks.'}
@@ -226,14 +226,14 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
           <>
             <button
               type="button"
-              className="nes-btn is-success font-arcade w-full"
+              className="btn btn-success font-display w-full"
               style={{ fontSize: 10 }}
               disabled={busy}
               onClick={() => run(() => loginUser(DEMO_EMAIL, DEMO_PASSWORD))}
             >
               {busy ? 'SIGNING IN...' : 'USE DEMO ACCOUNT'}
             </button>
-            <p className="font-code text-center" style={{ fontSize: 10, color: '#6b6b6b', margin: '6px 0 12px' }}>
+            <p className="font-code text-center" style={{ fontSize: 10, color: 'var(--ink-faint)', margin: '6px 0 12px' }}>
               {DEMO_EMAIL} / {DEMO_PASSWORD}
             </p>
           </>
@@ -256,15 +256,15 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
             <Field id="reg-confirm" label="CONFIRM PASSWORD" type="password" value={confirm} autoComplete="new-password" onChange={setConfirm} />
           )}
           {error && (
-            <p className="font-code" style={{ fontSize: 11, color: '#e76e55', margin: '4px 0 8px' }}>
+            <p className="font-code" style={{ fontSize: 11, color: 'var(--danger)', margin: '4px 0 8px' }}>
               [ERROR] {error}
             </p>
           )}
           <div className="flex gap-2 justify-end" style={{ marginTop: 8 }}>
-            <button type="button" className="nes-btn nes-btn-xs font-arcade" style={{ fontSize: 8 }} onClick={onCancel}>
+            <button type="button" className="btn btn-xs font-display" style={{ fontSize: 8 }} onClick={onCancel}>
               CANCEL
             </button>
-            <button type="submit" className="nes-btn is-primary nes-btn-xs font-arcade" style={{ fontSize: 8 }} disabled={busy}>
+            <button type="submit" className="btn btn-primary btn-xs font-display" style={{ fontSize: 8 }} disabled={busy}>
               {busy ? 'WORKING...' : mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}
             </button>
           </div>
@@ -301,7 +301,7 @@ export function AuthBadge() {
 
   if (!user) {
     return (
-      <button type="button" className="nes-btn is-success nes-btn-xs font-arcade" style={{ fontSize: 9 }} onClick={openLogin}>
+      <button type="button" className="btn btn-success btn-xs font-display" style={{ fontSize: 9 }} onClick={openLogin}>
         SIGN IN
       </button>
     )
@@ -310,11 +310,11 @@ export function AuthBadge() {
   if (flash) {
     return (
       <span
-        className="font-arcade"
+        className="font-display"
         role="status"
-        style={{ fontSize: 8, padding: '6px 8px', border: '3px solid #92cc41', backgroundColor: '#e6f9d8', color: '#212529' }}
+        style={{ fontSize: 8, padding: '6px 8px', border: '3px solid var(--success)', backgroundColor: 'var(--success-soft)', color: 'var(--ink)' }}
       >
-        <ShieldCheck size={10} className="inline mr-1" style={{ color: '#4a8a1c' }} />
+        <ShieldCheck size={10} className="inline mr-1" style={{ color: 'var(--success)' }} />
         SIGNED IN AS {user.name.toUpperCase()}
       </span>
     )
@@ -324,7 +324,7 @@ export function AuthBadge() {
     <span ref={wrapRef} style={{ position: 'relative', display: 'inline-block' }}>
       <button
         type="button"
-        className="nes-btn is-success nes-btn-xs"
+        className="btn btn-success btn-xs"
         style={{ fontSize: 9, lineHeight: 1 }}
         title={`Signed in as ${user.name} (${user.email})`}
         aria-label={`Signed in as ${user.name}. Open account menu`}
@@ -341,19 +341,19 @@ export function AuthBadge() {
             right: 0,
             top: 'calc(100% + 8px)',
             minWidth: 220,
-            backgroundColor: '#fff',
-            border: '3px solid #212529',
-            boxShadow: '4px 4px 0px rgba(0,0,0,0.3)',
+            backgroundColor: 'var(--bg-panel)',
+            border: '3px solid var(--border)',
+            boxShadow: '4px 4px 0 var(--shadow-color)',
             padding: 10,
             zIndex: 60,
           }}
         >
-          <div className="font-arcade" style={{ fontSize: 8, color: '#6b6b6b', marginBottom: 4 }}>SIGNED IN AS</div>
-          <div style={{ fontSize: 12, fontWeight: 'bold', color: '#212529' }}>{user.name}</div>
-          <div style={{ fontSize: 10, color: '#6b6b6b', marginBottom: 8, wordBreak: 'break-all' }}>{user.email}</div>
+          <div className="font-display" style={{ fontSize: 8, color: 'var(--ink-faint)', marginBottom: 4 }}>SIGNED IN AS</div>
+          <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--ink)' }}>{user.name}</div>
+          <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 8, wordBreak: 'break-all' }}>{user.email}</div>
           <button
             type="button"
-            className="nes-btn is-error nes-btn-xs font-arcade w-full"
+            className="btn btn-danger btn-xs font-display w-full"
             style={{ fontSize: 8 }}
             onClick={() => {
               setMenuOpen(false)
