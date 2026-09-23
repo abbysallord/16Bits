@@ -620,6 +620,19 @@ async function runTests() {
     recordTest('16. Claim Guard', false, err.message)
   }
 
+  // TEST 17: Queue filter hides profanity by whole word only (no false positives like "password")
+  try {
+    const stamp = Date.now()
+    const ok = await request('/api/agents/execute', { method: 'POST', body: { title: `Database password rotation failed ${stamp}`, description: 'class of assets hit mass auth errors', priority: 'LOW' } })
+    const bad = await request('/api/agents/execute', { method: 'POST', body: { title: `shit is down ${stamp}`, description: 'test', priority: 'LOW' } })
+    const list = await request('/api/incidents')
+    const ids = (list.data.incidents || []).map((i: any) => i.id)
+    const passed = ids.includes(ok.data?.result?.incidentId) && !ids.includes(bad.data?.result?.incidentId)
+    recordTest('17. Queue Filter (whole words only)', passed, `password incident listed: ${ids.includes(ok.data?.result?.incidentId)}, profane incident hidden: ${!ids.includes(bad.data?.result?.incidentId)}`)
+  } catch (err: any) {
+    recordTest('17. Queue Filter', false, err.message)
+  }
+
   console.log('----------------------------------------------------')
   const passCount = results.filter(r => r.passed).length
   const failCount = results.filter(r => !r.passed).length

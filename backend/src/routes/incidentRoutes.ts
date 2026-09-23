@@ -19,10 +19,12 @@ incidentRouter.get('/', resolveOrg, async (req: AuthenticatedRequest, res: Respo
     SELECT * FROM incidents WHERE org_id = ? ORDER BY created_at DESC LIMIT 30
   `, [req.orgId]) as any[]
   
-  const BANNED_PATTERNS = ['fuck', 'shit', 'bitch', 'ass', 'boy', 'friend', 'dating', 'sex']
+  // Hide junk/profane entries from the public queue. Whole words only, so real incidents that mention
+  // "password", "class", "assets" or "mass" are not hidden.
+  const BANNED_WORDS = /\b(fuck\w*|shit\w*|bitch\w*|ass|asshole|boy|boyfriend|friend|girlfriend|dating|sex|sexy)\b/i
   const cleanIncidents = incidents.filter(inc => {
-    const text = ((inc.title || '') + ' ' + (inc.description || '')).toLowerCase()
-    return !BANNED_PATTERNS.some(p => text.includes(p)) && (inc.title || '').length >= 5
+    const text = (inc.title || '') + ' ' + (inc.description || '')
+    return !BANNED_WORDS.test(text) && (inc.title || '').length >= 5
   })
 
   res.json({ incidents: cleanIncidents })
