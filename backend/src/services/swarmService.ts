@@ -1,4 +1,6 @@
 import os from 'os'
+import fs from 'fs'
+import path from 'path'
 import crypto from 'crypto'
 import { RunTree } from 'langsmith'
 import { db } from '../db/database.js'
@@ -190,26 +192,80 @@ Be concise, technical, and objective. Maximum 140 words.
     const matchedRunbook = runbookService.findBestRunbook(effectiveTitle + ' ' + effectiveDesc)
     const slaPolicy = SlaPolicyMatrix.getPolicy(priority)
 
+    // Codebase File & AST Knowledge Graph Inspection
+    let inspectedFile: string | null = null
+    let fileSnippet: string | null = null
+    let astContext: string | null = null
+
+    const combinedText = `${effectiveTitle} ${effectiveDesc}`
+    const fileMatch = combinedText.match(/([a-zA-Z0-9_\-\.\/]+\.(ts|js|json|sql|py|go|md))/i)
+    if (fileMatch && fileMatch[1]) {
+      const targetRel = fileMatch[1].replace(/^\.\//, '')
+      const searchPaths = [
+        path.resolve(process.cwd(), targetRel),
+        path.resolve(process.cwd(), 'src', targetRel),
+        path.resolve(process.cwd(), 'backend', targetRel),
+        path.resolve(process.cwd(), 'backend', 'src', targetRel),
+      ]
+      for (const p of searchPaths) {
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+          try {
+            const raw = fs.readFileSync(p, 'utf-8')
+            inspectedFile = path.relative(process.cwd(), p)
+            fileSnippet = raw.slice(0, 1000)
+            break
+          } catch {}
+        }
+      }
+    }
+
+    // Cross-reference static AST Knowledge Graph
+    const graphReportPath = path.resolve(process.cwd(), 'graphify-out', 'GRAPH_REPORT.md')
+    const altGraphPath = path.resolve(process.cwd(), 'backend', 'graphify-out', 'GRAPH_REPORT.md')
+    const finalGraphPath = fs.existsSync(graphReportPath) ? graphReportPath : (fs.existsSync(altGraphPath) ? altGraphPath : null)
+    if (finalGraphPath) {
+      try {
+        const godNodes = ['AIService', 'RunbookService', 'SwarmService', 'db', 'requireAuth', 'GuardrailService', 'validate']
+        const matchedNodes = godNodes.filter(n => combinedText.toLowerCase().includes(n.toLowerCase()))
+        if (matchedNodes.length > 0) {
+          astContext = `Matched AST God Nodes in Codebase Architecture: ${matchedNodes.join(', ')}`
+        }
+      } catch {}
+    }
+
     const toolPrompt = `
-You are the Investigator Agent with access to live host telemetry and enterprise SOP runbooks.
+You are the Investigator Agent with access to live host telemetry, enterprise SOP runbooks, and codebase AST graphs.
 You retrieved:
 - Host Telemetry: ${JSON.stringify(hostTelemetry)}
 - Enterprise SLA: ${JSON.stringify(slaPolicy)}
 - Matched SOP Runbook: "${matchedRunbook?.title}"
 - Runbook Procedures:
 ${matchedRunbook?.content.slice(0, 500)}
+${inspectedFile ? `- Inspected Source File [${inspectedFile}]:\n${fileSnippet}\n` : ''}
+${astContext ? `- Codebase Architecture (AST Graph): ${astContext}\n` : ''}
 
 Incident: "${effectiveTitle}" - "${effectiveDesc}"
 
-Synthesize the failure mechanism based on the telemetry and the matching SOP runbook. Maximum 120 words.
+Synthesize the failure mechanism based on the telemetry, codebase context, and matching SOP runbook. Maximum 120 words.
 `
     const toolThought = await aiService.complete(toolPrompt, "You are a senior site reliability and systems investigator.")
+    
+    const actionDesc = inspectedFile
+      ? `Queried live OS telemetry, inspected codebase file [${inspectedFile}], and retrieved SOP Runbook: "${matchedRunbook?.title}".`
+      : `Queried live OS telemetry and retrieved SOP Runbook: "${matchedRunbook?.title}".`
+
     await recordStep(
       'Investigator Agent',
       2,
       toolThought,
-      `Queried live OS telemetry and retrieved SOP Runbook: "${matchedRunbook?.title}".`,
-      { hostTelemetry, slaPolicy, runbookTitle: matchedRunbook?.title }
+      actionDesc,
+      {
+        hostTelemetry,
+        slaPolicy,
+        runbookTitle: matchedRunbook?.title,
+        ...(inspectedFile ? { inspectedFile, filePreview: fileSnippet?.slice(0, 250) } : {}),
+        ...(astContext ? { astKnowledgeGraph: astContext } : {})
+      }
     )
 
     // ==========================================
