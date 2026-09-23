@@ -594,6 +594,32 @@ async function runTests() {
     recordTest('15. Password Reset', false, err.message)
   }
 
+  // TEST 16: Claim guard - a signed-in user can adopt their own recent demo run, but never the seeded benchmark
+  try {
+    const stamp = Date.now()
+    const anon = await request('/api/agents/execute', { method: 'POST', body: { title: `Claim guard check ${stamp}`, description: 'disk usage warning on log volume', priority: 'LOW' } })
+    const anonId = anon.data?.result?.incidentId
+    // A benchmark-style incident run by the shared demo login (same shape as the seeded one)
+    const demo = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@16bits.io', password: 'admin123' } })
+    const benchRun = await request('/api/agents/execute', { method: 'POST', headers: { Authorization: `Bearer ${demo.data.token}` }, body: { title: 'Payment Webhook Ingestion Throttle on Stripe Gateway', description: 'Webhook consumer queue backlog with HTTP 429 on settlement callbacks', priority: 'CRITICAL' } })
+    const bench = benchRun.data?.result?.incidentId ? { id: benchRun.data.result.incidentId } : null
+    const u = await request('/api/auth/register', { method: 'POST', body: { name: 'Claimer', email: `cl-${stamp}@example.com`, password: 'secret123', teamName: `Claim ${stamp}` } })
+    const h = { Authorization: `Bearer ${u.data.token}` }
+    const benchClaim = bench ? await request('/api/agents/claim', { method: 'POST', headers: h, body: { incidentIds: [bench.id] } }) : null
+    const benchApprove = bench ? await request('/api/agents/approve', { method: 'POST', headers: h, body: { incidentId: bench.id } }) : null
+    const own = await request('/api/agents/claim', { method: 'POST', headers: h, body: { incidentIds: [anonId] } })
+    const checks: Record<string, boolean> = {
+      benchmarkFound: Boolean(bench),
+      benchmarkNotClaimable: benchClaim?.data?.claimedCount === 0,
+      benchmarkNotAdoptedViaApprove: benchApprove?.status === 404,
+      recentRunClaimable: Boolean(anonId) && own.data?.claimedCount === 1
+    }
+    const failed = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k)
+    recordTest('16. Claim Guard (recent own runs only, never the seeded benchmark)', failed.length === 0, failed.length ? `Failed: ${failed.join(', ')}` : `${Object.keys(checks).length} checks passed`)
+  } catch (err: any) {
+    recordTest('16. Claim Guard', false, err.message)
+  }
+
   console.log('----------------------------------------------------')
   const passCount = results.filter(r => r.passed).length
   const failCount = results.filter(r => !r.passed).length

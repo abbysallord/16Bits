@@ -10,7 +10,7 @@ import { notifyIncidentApproved } from '../services/slackService.js'
 import { AuthenticatedRequest, requireAuth, resolveOrg } from '../middleware/auth.js'
 import { DEMO_ORG_ID, getOrgByIngestKey, runInOrg } from '../services/orgService.js'
 import { enqueueSwarm } from '../services/swarmQueue.js'
-import { demoAccountEnabled } from '../config/demo.js'
+import { DEMO_EMAIL, demoAccountEnabled } from '../config/demo.js'
 import { approveLimiter, executeLimiter, webhookLimiter } from '../middleware/rateLimit.js'
 
 export const agentRouter = Router()
@@ -160,6 +160,20 @@ agentRouter.post('/webhook/alert', webhookLimiter, async (req: Request, res: Res
   }
 })
 
+// Demo-team incidents a signed-in user may adopt into their own team (CLI history / this browser's runs).
+// Guard: only incidents from the last 24 hours, and never the seeded benchmark incident, so nobody can
+// pull the public demo queue that judges see into a private team.
+const SEEDED_BENCHMARK_TITLE = 'Payment Webhook Ingestion Throttle on Stripe Gateway'
+function claimableDemoFilter(): { sql: string; params: unknown[] } {
+  const d = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const utc = d.toISOString().slice(0, 19).replace('T', ' ')
+  const cutoff = db.kind === 'postgres' ? `${utc}+00` : utc
+  return {
+    sql: `(org_id = ? OR org_id IS NULL) AND created_at >= ? AND NOT (title = ? AND user_id IN (SELECT id FROM users WHERE email = ?))`,
+    params: [DEMO_ORG_ID, cutoff, SEEDED_BENCHMARK_TITLE, DEMO_EMAIL]
+  }
+}
+
 // Human-in-the-Loop Operator Authorization
 // Human approval gate. Signed-in operators only; the approver comes from the verified JWT.
 agentRouter.post('/approve', approveLimiter, requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -173,7 +187,8 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
   let existing = await db.get('SELECT status, org_id FROM incidents WHERE id = ? AND org_id = ?', [incidentId, req.orgId]) as { status: string; org_id: string } | undefined
   if (!existing) {
     // If the incident was created in the demo sandbox (e.g. unauthenticated CLI triage), adopt it into the operator's private workspace
-    const demoIncident = await db.get('SELECT status, org_id FROM incidents WHERE id = ? AND (org_id = ? OR org_id IS NULL)', [incidentId, DEMO_ORG_ID]) as { status: string; org_id: string } | undefined
+    const claimable = claimableDemoFilter()
+    const demoIncident = await db.get(`SELECT status, org_id FROM incidents WHERE id = ? AND ${claimable.sql}`, [incidentId, ...claimable.params]) as { status: string; org_id: string } | undefined
     if (demoIncident && req.orgId) {
       await db.run('UPDATE incidents SET org_id = ? WHERE id = ?', [req.orgId, incidentId])
       existing = { status: demoIncident.status, org_id: req.orgId }
@@ -224,8 +239,8 @@ agentRouter.post('/claim', requireAuth, async (req: AuthenticatedRequest, res: R
 
   const placeholders = cleanIds.map(() => '?').join(',')
   const toClaim = await db.all<{ id: string }>(
-    `SELECT id FROM incidents WHERE id IN (${placeholders}) AND (org_id = ? OR org_id IS NULL)`,
-    [...cleanIds, DEMO_ORG_ID]
+    `SELECT id FROM incidents WHERE id IN (${placeholders}) AND ${claimableDemoFilter().sql}`,
+    [...cleanIds, ...claimableDemoFilter().params]
   )
   const idsToUpdate = toClaim.map(r => r.id)
   if (idsToUpdate.length > 0) {
