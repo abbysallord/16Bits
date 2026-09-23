@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import DocsPage from './pages/DocsPage'
+import IncidentPage from './pages/IncidentPage'
 import {
   Zap,
   Activity,
@@ -774,7 +775,11 @@ function ConsoleView() {
                             ...incidents.filter((inc) => !pending.some((p) => p.title === inc.title)),
                           ].slice(0, 6).map((item) => (
                             <tr key={item.id}>
-                              <td className="font-code text-left" style={{ fontSize: 10 }}>{item.title}</td>
+                              <td className="font-code text-left" style={{ fontSize: 10 }}>
+                                {item.id.startsWith('local-') ? item.title : (
+                                  <Link to={`/incidents/${item.id}`} style={{ color: '#212529' }}>{item.title}</Link>
+                                )}
+                              </td>
                               <td className="font-code" style={{ fontSize: 10, color: item.status === 'RESOLVED' ? '#92cc41' : '#f7d51d' }}>
                                 {item.status}
                               </td>
@@ -846,6 +851,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/docs" element={<DocsPage />} />
+      <Route path="/incidents/:id" element={<IncidentPage />} />
       <Route path="*" element={<ConsoleView />} />
     </Routes>
   )

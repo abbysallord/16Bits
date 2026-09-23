@@ -19,7 +19,7 @@ export interface Incident {
   description: string
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   category: string
-  status: 'PENDING' | 'ANALYZING' | 'RESOLVED' | 'FAILED'
+  status: 'PENDING' | 'ANALYZING' | 'AWAITING_APPROVAL' | 'RESOLVED' | 'FAILED'
   resolution?: string | null
   created_at: string
   updated_at: string

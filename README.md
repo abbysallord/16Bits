@@ -132,7 +132,8 @@ npm run test:e2e   # 14 checks: health, auth, guardrails, execute, SSE stream, w
    - Optional: `CORS_ORIGINS` (comma-separated browser origins allowed to call the API; defaults to `https://16bits-omniops.vercel.app` plus localhost:5173/4173)
    - Optional: `AI_MAX_TOKENS` (max output tokens per agent call; default 2048)
    - Recommended for production: `WEBHOOK_SECRET` (alert webhook then requires it via `x-webhook-secret`, `Authorization: Bearer`, or `?token=`; see the Docs page for Alertmanager, PagerDuty and Datadog setup)
-   - Optional: `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL; after every swarm run OmniOps posts the incident title, priority, status, ID and a resolution preview)
+   - Optional: `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL). Every triaged incident is posted with priority, status, matched runbook, a summary and a **Review & approve** button that opens `/incidents/<id>` on the web console; approvals are posted too
+   - Optional: `APP_URL` (web console URL used in Slack links; default `https://16bits-omniops.vercel.app`)
    - Optional: `LANGSMITH_API_KEY` (for distributed tracing)
 
 > **Storage:** With `DATABASE_URL` set, incidents, approvals and users are stored in Postgres and survive restarts. Without it, the backend falls back to SQLite, and Render's free tier wipes that file on every restart. Either way, an idempotent boot seeder (`seedDemoData` in `server.ts`) creates the demo operator account (`admin@16bits.io` / `admin123`) and a benchmark incident if the users table is empty.

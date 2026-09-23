@@ -6,6 +6,7 @@ import { runbookService } from '../services/runbookService.js'
 import { runAgentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
 import { normalizeAlert, webhookAuthorized } from '../services/alertIntake.js'
+import { notifyIncidentApproved } from '../services/slackService.js'
 import { AuthenticatedRequest, requireAuth, verifyToken } from '../middleware/auth.js'
 
 export const agentRouter = Router()
@@ -132,6 +133,7 @@ agentRouter.post('/approve', requireAuth, async (req: AuthenticatedRequest, res:
       return
     }
     const updated = await db.get('SELECT * FROM incidents WHERE id = ?', [incidentId])
+    void notifyIncidentApproved({ incidentId, title: (updated as any)?.title || incidentId, approvedBy })
     res.json({
       message: `Remediation plan authorized by authenticated operator: ${approvedBy}. Status updated to RESOLVED.`,
       incident: updated,

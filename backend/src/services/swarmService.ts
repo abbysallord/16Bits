@@ -4,6 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { RunTree } from 'langsmith'
 import { db } from '../db/database.js'
+import { notifyIncidentTriaged } from './slackService.js'
 import { aiService } from './aiService.js'
 import { runbookService } from './runbookService.js'
 import { guardrailService } from './guardrailService.js'
@@ -354,21 +355,15 @@ Keep it crisp, professional, and ready for immediate deployment.
       }
     }
 
-    // Optional Slack / Collaboration Webhook Dispatch
-    const slackUrl = process.env.SLACK_WEBHOOK_URL
-    if (slackUrl) {
-      try {
-        await fetch(slackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: `[16Bits OmniOps Alert]: ${effectiveTitle} [${priority}]\nStatus: ${finalStatus}\nIncident: ${incidentId}\nResolution: ${finalResolution.slice(0, 200)}...`
-          })
-        })
-      } catch (err: any) {
-        console.warn(`[Slack Webhook] notice: ${err.message}`)
-      }
-    }
+    // Optional Slack notification with a deep link to the incident review page (non-blocking)
+    void notifyIncidentTriaged({
+      incidentId,
+      title: effectiveTitle,
+      priority,
+      status: finalStatus,
+      resolution: finalResolution,
+      runbook: matchedRunbook?.title
+    })
 
     const executionDurationMs = Date.now() - startTime
 
