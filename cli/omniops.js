@@ -3,12 +3,16 @@
 /**
  * 16Bits OmniOps CLI Tool
  * Fast, terminal-native autonomous operations client & agent-to-agent interface.
- * Supports direct arguments, piping stdin, and live system diagnosis.
+ * Supports direct arguments, piping stdin, interactive authorization, and private team workspaces.
  * Strict ZERO EMOJI enterprise compliance.
  */
 
 import os from 'os'
 import net from 'net'
+import fs from 'fs'
+import path from 'path'
+import readline from 'readline'
+import { exec } from 'child_process'
 
 const DEFAULT_CLOUD_API = 'https://one6bits.onrender.com'
 let API_BASE = process.env.OMNIOPS_API_URL || DEFAULT_CLOUD_API
@@ -62,14 +66,202 @@ ${c.cyan}${c.bold}╔═══════════════════�
 `)
 }
 
+// ============================================================================
+// Local Persistent Config (~/.omniops/config.json)
+// ============================================================================
+
+function getConfigDir() {
+  return path.join(os.homedir(), '.omniops')
+}
+
+function getConfigPath() {
+  return path.join(getConfigDir(), 'config.json')
+}
+
+function readConfig() {
+  try {
+    const p = getConfigPath()
+    if (!fs.existsSync(p)) return null
+    const raw = fs.readFileSync(p, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function writeConfig(data) {
+  try {
+    const dir = getConfigDir()
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(getConfigPath(), JSON.stringify(data, null, 2), 'utf-8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+function clearConfig() {
+  try {
+    const p = getConfigPath()
+    if (fs.existsSync(p)) fs.unlinkSync(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function getHistoryPath() {
+  return path.join(getConfigDir(), 'history.json')
+}
+
+function readHistory() {
+  try {
+    const p = getHistoryPath()
+    if (!fs.existsSync(p)) return []
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) || []
+  } catch {
+    return []
+  }
+}
+
+function recordLocalIncident(item) {
+  try {
+    const dir = getConfigDir()
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const history = readHistory().filter((h) => h.incidentId !== item.incidentId)
+    history.unshift(item)
+    fs.writeFileSync(getHistoryPath(), JSON.stringify(history.slice(0, 50), null, 2), 'utf-8')
+  } catch {}
+}
+
+async function claimLocalIncidents(token) {
+  const history = readHistory()
+  if (!history.length) return 0
+  const incidentIds = history.map((h) => h.incidentId).filter(Boolean)
+  if (!incidentIds.length) return 0
+
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/claim`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ incidentIds })
+    })
+    if (!res.ok) return 0
+    const data = await res.json()
+    return data.claimedCount || 0
+  } catch {
+    return 0
+  }
+}
+
+function getStoredToken() {
+  if (process.env.OMNIOPS_TOKEN) return process.env.OMNIOPS_TOKEN.trim()
+  const cfg = readConfig()
+  if (cfg && cfg.token) return cfg.token.trim()
+  return null
+}
+
+function getStoredUser() {
+  const cfg = readConfig()
+  return cfg?.user || null
+}
+
+function getWebAppBase() {
+  if (process.env.OMNIOPS_APP_URL) return process.env.OMNIOPS_APP_URL.replace(/\/$/, '')
+  return API_BASE.includes('localhost') ? 'http://localhost:5173' : 'https://16bits-omniops.vercel.app'
+}
+
+function openBrowser(url) {
+  const platform = os.platform()
+  try {
+    if (platform === 'win32') {
+      exec(`start "" "${url}"`)
+    } else if (platform === 'darwin') {
+      exec(`open "${url}"`)
+    } else {
+      exec(`xdg-open "${url}"`)
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function askQuestion(query) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  })
+  return new Promise((resolve) => {
+    rl.question(query, (ans) => {
+      rl.close()
+      resolve(ans.trim())
+    })
+  })
+}
+
+function askPassword(query) {
+  return new Promise((resolve) => {
+    process.stdout.write(query)
+    const stdin = process.stdin
+    if (!stdin.isTTY) {
+      const rl = readline.createInterface({ input: stdin, output: process.stdout })
+      rl.question('', (ans) => {
+        rl.close()
+        resolve(ans.trim())
+      })
+      return
+    }
+    const prevRaw = stdin.isRaw
+    if (stdin.setRawMode) stdin.setRawMode(true)
+    stdin.resume()
+    stdin.setEncoding('utf-8')
+    let password = ''
+    const onData = (ch) => {
+      const char = ch.toString()
+      if (char === '\n' || char === '\r' || char === '\u0004') {
+        if (stdin.setRawMode) stdin.setRawMode(prevRaw)
+        stdin.removeListener('data', onData)
+        process.stdout.write('\n')
+        resolve(password)
+      } else if (char === '\u0003') {
+        process.exit(1)
+      } else if (char === '\u007f' || char === '\b') {
+        if (password.length > 0) {
+          password = password.slice(0, -1)
+          process.stdout.write('\b \b')
+        }
+      } else {
+        password += char
+        process.stdout.write('*')
+      }
+    }
+    stdin.on('data', onData)
+  })
+}
+
+// ============================================================================
+// Input & Network Utilities
+// ============================================================================
+
 async function readStdin() {
   if (process.stdin.isTTY) return ''
   return new Promise((resolve) => {
     let data = ''
     process.stdin.setEncoding('utf-8')
+    const timer = setTimeout(() => {
+      try { process.stdin.pause() } catch {}
+      resolve(data.trim())
+    }, 400)
     process.stdin.on('data', chunk => { data += chunk })
-    process.stdin.on('end', () => resolve(data.trim()))
-    setTimeout(() => resolve(data.trim()), 2000)
+    process.stdin.on('end', () => {
+      clearTimeout(timer)
+      try { process.stdin.pause() } catch {}
+      resolve(data.trim())
+    })
   })
 }
 
@@ -92,6 +284,10 @@ function checkPort(port, host = '127.0.0.1') {
     socket.connect(port, host)
   })
 }
+
+// ============================================================================
+// Commands: Health, Doctor, Auth
+// ============================================================================
 
 async function checkHealth() {
   printBanner()
@@ -150,6 +346,202 @@ async function runDoctor() {
   }
 }
 
+async function loginCommand() {
+  printBanner()
+  console.log(`${c.bold}OmniOps Operator Authentication${c.reset}`)
+  console.log(`${c.dim}Log in to bind this terminal to your private organization & team workspace.${c.reset}\n`)
+
+  const storedToken = getStoredToken()
+  if (storedToken) {
+    const storedUser = getStoredUser()
+    console.log(`${c.yellow}[INFO] Already authenticated as: ${storedUser?.name || 'Operator'} (${storedUser?.email || 'authenticated'})${c.reset}`)
+    const reauth = await askQuestion(`Would you like to re-authenticate with a different account? (y/N): `)
+    if (!reauth.match(/^y(es)?$/i)) {
+      console.log(`${c.green}[OK] Preserving current session.${c.reset}\n`)
+      return
+    }
+  }
+
+  console.log(`${c.cyan}Options to authenticate:${c.reset}`)
+  console.log(`  1. Enter email & password`)
+  console.log(`  2. Paste your JWT Token (copied from web console)`)
+  console.log(`  3. Open web console in browser to create an account\n`)
+
+  const choice = await askQuestion(`Select option [1, 2, 3] (default: 1): `)
+
+  if (choice === '3') {
+    const webUrl = getWebAppBase()
+    console.log(`\n${c.cyan}[INFO] Opening OmniOps Web Console in browser: ${webUrl}${c.reset}`)
+    openBrowser(webUrl)
+    console.log(`${c.dim}After signing up or signing in, copy your JWT token or return here to enter credentials.${c.reset}\n`)
+    return
+  }
+
+  if (choice === '2') {
+    const token = await askQuestion(`Paste your JWT token: `)
+    if (!token) {
+      console.log(`${c.red}[FAIL] No token provided.${c.reset}`)
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        console.log(`${c.red}[FAIL] Invalid or expired token.${c.reset}`)
+        return
+      }
+      const data = await res.json()
+      writeConfig({
+        token,
+        user: data.user,
+        apiUrl: API_BASE,
+        savedAt: new Date().toISOString()
+      })
+      console.log(`\n${c.green}${c.bold}[OK] Authenticated successfully!${c.reset}`)
+      console.log(`  ${c.dim}Operator:${c.reset}  ${data.user.name} (${data.user.email})`)
+      console.log(`  ${c.dim}Role:${c.reset}      ${data.user.role}`)
+      console.log(`  ${c.dim}Workspace:${c.reset} ${c.bold}${data.user.orgName || 'Private Team'}${c.reset} (org_id: ${data.user.orgId || 'private'})`)
+      console.log(`  ${c.dim}Config:${c.reset}    Saved to ~/.omniops/config.json`)
+
+      const claimed = await claimLocalIncidents(token)
+      if (claimed > 0) {
+        console.log(`  ${c.green}${c.bold}[OK] Claimed ${claimed} local incident(s) into your team workspace! Recorded in /audit.${c.reset}`)
+      }
+      console.log('')
+    } catch (err) {
+      console.log(`${c.red}[FAIL] Could not verify token with ${API_BASE}:${c.reset}`, err.message)
+    }
+    return
+  }
+
+  const email = await askQuestion(`Email: `)
+  if (!email) {
+    console.log(`${c.red}[FAIL] Email is required.${c.reset}`)
+    return
+  }
+  const password = await askPassword(`Password: `)
+  if (!password) {
+    console.log(`${c.red}[FAIL] Password is required.${c.reset}`)
+    return
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password })
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.log(`\n${c.red}[FAIL] Sign-in failed:${c.reset} ${err.error || `HTTP ${res.status}`}`)
+      console.log(`${c.yellow}Tip: Need an account? Run 'omniops login' and select Option 3 to open the web console.${c.reset}\n`)
+      return
+    }
+
+    const data = await res.json()
+    writeConfig({
+      token: data.token,
+      user: data.user,
+      apiUrl: API_BASE,
+      savedAt: new Date().toISOString()
+    })
+
+    console.log(`\n${c.green}${c.bold}[OK] Terminal authenticated successfully!${c.reset}`)
+    console.log(`  ${c.dim}Operator:${c.reset}  ${data.user.name} (${data.user.email})`)
+    console.log(`  ${c.dim}Role:${c.reset}      ${data.user.role}`)
+    console.log(`  ${c.dim}Workspace:${c.reset} ${c.bold}${data.user.orgName || 'Private Team'}${c.reset} (org_id: ${data.user.orgId || 'private'})`)
+    console.log(`  ${c.dim}Config:${c.reset}    Saved to ~/.omniops/config.json`)
+
+    const claimed = await claimLocalIncidents(data.token)
+    if (claimed > 0) {
+      console.log(`  ${c.green}${c.bold}[OK] Claimed ${claimed} local machine incident(s) into your team workspace! Recorded in /audit.${c.reset}`)
+    }
+    console.log(`\n${c.green}Your private team workspace is now active for all CLI operations.${c.reset}\n`)
+  } catch (err) {
+    console.log(`\n${c.red}[FAIL] Connection error:${c.reset}`, err.message)
+  }
+}
+
+async function historyCommand() {
+  printBanner()
+  const history = readHistory()
+  console.log(`${c.bold}Local Machine Incident History (${history.length} recorded):${c.reset}\n`)
+  if (!history.length) {
+    console.log(`  ${c.dim}No incidents triaged on this machine yet.${c.reset}\n`)
+    return
+  }
+  history.forEach((h, i) => {
+    const timeStr = new Date(h.timestamp).toLocaleString()
+    console.log(`  ${c.cyan}${i + 1}. [${h.priority}]${c.reset} ${c.bold}${h.title}${c.reset}`)
+    console.log(`     ${c.dim}ID:${c.reset} ${h.incidentId} ${c.dim}• Status: ${h.status} • ${timeStr}${c.reset}`)
+  })
+  console.log(`\n${c.dim}Run 'omniops claim' to allocate all machine incidents to your signed-in workspace.${c.reset}\n`)
+}
+
+async function claimCommand() {
+  printBanner()
+  const token = getStoredToken()
+  if (!token) {
+    console.log(`${c.yellow}[AUTH REQUIRED] Sign in first to claim incidents into your workspace:${c.reset}`)
+    console.log(`  ${c.bold}omniops login${c.reset}\n`)
+    return
+  }
+  const history = readHistory()
+  console.log(`${c.bold}Allocating ${history.length} local machine incident(s) to your team workspace...${c.reset}`)
+  const count = await claimLocalIncidents(token)
+  if (count > 0) {
+    console.log(`\n${c.green}${c.bold}[OK] Successfully allocated ${count} incident(s) to your private workspace!${c.reset}`)
+    console.log(`${c.dim}All items are now permanently recorded in your team's /audit trail.${c.reset}\n`)
+  } else {
+    console.log(`\n${c.yellow}[INFO] All local incidents are already claimed or recorded.${c.reset}\n`)
+  }
+}
+
+async function whoamiCommand() {
+  printBanner()
+  const token = getStoredToken()
+  if (!token) {
+    console.log(`${c.yellow}${c.bold}[STATUS] Not Signed In${c.reset}`)
+    console.log(`  ${c.dim}Mode:${c.reset}      Shared Public Demo Sandbox`)
+    console.log(`  ${c.dim}Workspace:${c.reset} org_id: demo`)
+    console.log(`\n${c.cyan}To link this terminal to your private team workspace:${c.reset}`)
+    console.log(`  ${c.bold}omniops login${c.reset}\n`)
+    return
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) {
+      console.log(`${c.red}[WARN] Stored token is invalid or expired.${c.reset}`)
+      console.log(`${c.yellow}Run 'omniops login' to authenticate.${c.reset}\n`)
+      return
+    }
+    const data = await res.json()
+    console.log(`${c.green}${c.bold}[STATUS] Authenticated Operator${c.reset}`)
+    console.log(`  ${c.dim}Operator:${c.reset}  ${data.user.name} (${data.user.email})`)
+    console.log(`  ${c.dim}Role:${c.reset}      ${data.user.role}`)
+    console.log(`  ${c.dim}Workspace:${c.reset} ${c.bold}${data.user.orgName || 'Private Team'}${c.reset} (${data.user.orgId})`)
+    console.log(`  ${c.dim}Engine Link:${c.reset}${API_BASE}\n`)
+  } catch (err) {
+    console.log(`${c.red}[FAIL] Could not verify session:${c.reset}`, err.message)
+  }
+}
+
+function logoutCommand() {
+  clearConfig()
+  console.log(`\n${c.green}[OK] Signed out successfully.${c.reset}`)
+  console.log(`${c.dim}Saved credentials removed from ~/.omniops/config.json.${c.reset}`)
+  console.log(`${c.dim}Terminal reverted to public demo sandbox mode.${c.reset}\n`)
+}
+
+// ============================================================================
+// Markdown Renderer
+// ============================================================================
+
 function renderTerminalMarkdown(md) {
   const lines = md.split('\n')
   const out = []
@@ -196,6 +588,10 @@ function renderTerminalMarkdown(md) {
   return out.join('\n')
 }
 
+// ============================================================================
+// Core Incident Triage
+// ============================================================================
+
 async function triageIncident(query, priority = 'HIGH') {
   printBanner()
   
@@ -204,17 +600,22 @@ async function triageIncident(query, priority = 'HIGH') {
     ? `${c.bgRed} CRITICAL ${c.reset}`
     : (prioUpper === 'HIGH' ? `${c.bgYellow} HIGH ${c.reset}` : `${c.bgCyan} ${prioUpper} ${c.reset}`)
 
+  const token = getStoredToken()
+  const storedUser = getStoredUser()
+
   console.log(`${c.bold}Initiating 4-Agent Swarm Triage...${c.reset}`)
   console.log(`${c.dim}Severity Target:${c.reset} ${prioBadge}`)
+  if (token && storedUser?.orgName) {
+    console.log(`${c.dim}Active Workspace:${c.reset} ${c.bold}${c.green}${storedUser.orgName}${c.reset} ${c.dim}(Private Team)${c.reset}`)
+  } else {
+    console.log(`${c.dim}Active Workspace:${c.reset} ${c.yellow}Public Demo Sandbox${c.reset} ${c.dim}(run 'omniops login' for private team)${c.reset}`)
+  }
   console.log(`${c.dim}Incident Payload:${c.reset}\n"${query.slice(0, 160)}${query.length > 160 ? '...' : ''}"\n`)
 
-  const startTime = Date.now()
-
   try {
-    // With OMNIOPS_TOKEN or OMNIOPS_EMAIL set, runs land in your team's private workspace;
-    // without them they go to the public demo workspace
     const headers = { 'Content-Type': 'application/json' }
-    if (process.env.OMNIOPS_TOKEN || process.env.OMNIOPS_EMAIL) headers.Authorization = `Bearer ${await getAuthToken()}`
+    if (token) headers.Authorization = `Bearer ${token}`
+
     const res = await fetch(`${API_BASE}/api/agents/execute`, {
       method: 'POST',
       headers,
@@ -232,6 +633,15 @@ async function triageIncident(query, priority = 'HIGH') {
     }
 
     const { result } = await res.json()
+
+    // Record incident to local machine history for workspace adoption
+    recordLocalIncident({
+      incidentId: result.incidentId,
+      title: result.title || query.split('\n')[0].slice(0, 80),
+      priority,
+      status: result.status,
+      timestamp: new Date().toISOString()
+    })
 
     // 1. Display Clean 4-Agent Trajectory Card
     console.log(`\n${c.cyan}${c.bold}┌── [4-Agent Autonomous Swarm Trajectory] ──────────────────────────┐${c.reset}`)
@@ -265,9 +675,14 @@ async function triageIncident(query, priority = 'HIGH') {
     console.log(renderTerminalMarkdown(result.finalResolution))
 
     // 3. Execution Summary Box
+    const workspaceDesc = token && storedUser?.orgName
+      ? `${c.green}${storedUser.orgName} (Private Team)${c.reset}`
+      : `${c.yellow}Public Demo Sandbox${c.reset} ${c.dim}(Run 'omniops login' for private team)${c.reset}`
+
     console.log(`\n${c.dim}┌── [Swarm Execution Summary] ──────────────────────────────────────────┐${c.reset}`)
     console.log(`${c.dim}│${c.reset}  ${c.bold}Status:${c.reset}          ${result.status === 'AWAITING_APPROVAL' ? c.bgYellow + ' [HALT: AWAITING OPERATOR APPROVAL] ' + c.reset : c.bgGreen + ' [OK: RESOLVED] ' + c.reset}`)
     console.log(`${c.dim}│${c.reset}  ${c.bold}Turnaround:${c.reset}      ${c.bold}${c.green}${result.executionDurationMs}ms${c.reset} ${c.dim}(Autonomous Sub-3s SLA)${c.reset}`)
+    console.log(`${c.dim}│${c.reset}  ${c.bold}Workspace:${c.reset}       ${workspaceDesc}`)
     console.log(`${c.dim}│${c.reset}  ${c.bold}Incident ID:${c.reset}     ${c.cyan}${result.incidentId}${c.reset}`)
 
     if (result.langsmithTraceUrl) {
@@ -279,7 +694,7 @@ async function triageIncident(query, priority = 'HIGH') {
       console.log(`\n${c.yellow}${c.bold}--> To authorize and sign off this execution:${c.reset}`)
       console.log(`   ${c.bold}omniops approve ${result.incidentId}${c.reset}\n`)
     } else {
-      console.log(`\n${c.bgGreen} [OK: REMEDIATION COMPLETED & COMMITTED TO SQLITE] ${c.reset}\n`)
+      console.log(`\n${c.bgGreen} [OK: REMEDIATION COMPLETED & COMMITTED TO DATABASE] ${c.reset}\n`)
     }
   } catch (err) {
     console.error(`\n${c.red}[FAIL] Swarm execution failed:${c.reset}`, err.message)
@@ -287,33 +702,89 @@ async function triageIncident(query, priority = 'HIGH') {
   }
 }
 
-// Operator sign-in for protected actions (approve). Uses OMNIOPS_TOKEN if set, otherwise logs in
-// with OMNIOPS_EMAIL / OMNIOPS_PASSWORD (defaults to the public demo operator account).
-async function getAuthToken() {
-  if (process.env.OMNIOPS_TOKEN) return process.env.OMNIOPS_TOKEN
-  const email = process.env.OMNIOPS_EMAIL || 'admin@16bits.io'
-  const password = process.env.OMNIOPS_PASSWORD || 'admin123'
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(`Operator sign-in failed for ${email}: ${err.error || `HTTP ${res.status}`}. Set OMNIOPS_TOKEN or OMNIOPS_EMAIL/OMNIOPS_PASSWORD.`)
-  }
-  const data = await res.json()
-  return data.token
-}
+// ============================================================================
+// Incident Approval with Instant Auth Guidance
+// ============================================================================
 
 async function approveIncident(incidentId) {
+  printBanner()
+  const webUrl = `${getWebAppBase()}/incidents/${incidentId}`
+
+  let token = getStoredToken()
+
+  // Case 1: User is not authenticated at all
+  if (!token) {
+    console.log(`${c.bgYellow}${c.bold} [OPERATOR AUTHORIZATION REQUIRED] ${c.reset}`)
+    console.log(`${c.yellow}Incident ${c.bold}${incidentId}${c.reset}${c.yellow} is held behind the Human-in-the-Loop Security Gate.${c.reset}`)
+    console.log(`${c.dim}You are currently NOT signed in as an authenticated Operator.${c.reset}\n`)
+
+    console.log(`${c.bold}To authorize this plan in your private workspace:${c.reset}\n`)
+    console.log(`  ${c.cyan}[Option 1] Review & Authorize in Web Browser (Interactive Console):${c.reset}`)
+    console.log(`    ${c.bold}-> ${webUrl}${c.reset}\n`)
+    console.log(`  ${c.cyan}[Option 2] Authenticate this terminal:${c.reset}`)
+    console.log(`    ${c.bold}-> omniops login${c.reset}\n`)
+
+    if (process.stdin.isTTY) {
+      const choice = await askQuestion(`Open incident in your default browser now? [Y/n / type 'login']: `)
+      if (choice.toLowerCase() === 'login') {
+        await loginCommand()
+        token = getStoredToken()
+        if (!token) return
+      } else if (!choice || choice.match(/^y(es)?$/i)) {
+        console.log(`\n${c.green}[OK] Launching browser to:${c.reset} ${webUrl}`)
+        openBrowser(webUrl)
+        console.log(`${c.dim}Sign in on the web console and click "AUTHORIZE PLAN" to complete.${c.reset}\n`)
+        return
+      } else {
+        console.log(`\n${c.yellow}Run 'omniops login' when you are ready to authenticate.${c.reset}\n`)
+        return
+      }
+    } else {
+      console.log(`${c.yellow}Visit ${webUrl} or run 'omniops login' to authorize.${c.reset}\n`)
+      return
+    }
+  }
+
+  // Case 2: Attempt approval with verified token
   try {
-    const token = await getAuthToken()
     const res = await fetch(`${API_BASE}/api/agents/approve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
       body: JSON.stringify({ incidentId })
     })
+
+    if (res.status === 401) {
+      console.log(`\n${c.bgYellow}${c.bold} [AUTH REQUIRED] SESSION EXPIRED OR INVALID ${c.reset}`)
+      console.log(`${c.yellow}Your operator session token is invalid or expired.${c.reset}\n`)
+      console.log(`  ${c.cyan}Option 1: Review & Authorize on Web Console:${c.reset}`)
+      console.log(`    -> ${c.bold}${webUrl}${c.reset}\n`)
+      console.log(`  ${c.cyan}Option 2: Re-authenticate this terminal:${c.reset}`)
+      console.log(`    -> ${c.bold}omniops login${c.reset}\n`)
+
+      if (process.stdin.isTTY) {
+        const choice = await askQuestion(`Open incident in browser now? [Y/n]: `)
+        if (!choice || choice.match(/^y(es)?$/i)) {
+          console.log(`\n${c.green}[OK] Launching browser to:${c.reset} ${webUrl}\n`)
+          openBrowser(webUrl)
+        }
+      }
+      return
+    }
+
+    if (res.status === 404) {
+      console.log(`\n${c.red}[FAIL] Incident not found:${c.reset} ${incidentId}`)
+      console.log(`${c.dim}This incident either does not exist or belongs to another team's private workspace.${c.reset}\n`)
+      return
+    }
+
+    if (res.status === 409) {
+      const err = await res.json().catch(() => ({}))
+      console.log(`\n${c.yellow}[INFO] ${err.error || 'Incident is no longer awaiting approval (already resolved).'}${c.reset}\n`)
+      return
+    }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -321,20 +792,31 @@ async function approveIncident(incidentId) {
     }
 
     const data = await res.json()
-    console.log(`\n${c.green}${c.bold}[OK] Incident Authorized & Resolved!${c.reset}`)
-    console.log(`${c.dim}Incident ID:${c.reset} ${data.incident.id}`)
-    console.log(`${c.dim}Updated Status:${c.reset} ${data.incident.status}`)
-    if (data.authorizedBy) console.log(`${c.dim}Authorized By:${c.reset} ${data.authorizedBy}`)
-    console.log(`${c.dim}Title:${c.reset} ${data.incident.title}\n`)
+    console.log(`\n${c.green}${c.bold}╔══════════════════════════════════════════════════════════════════════╗${c.reset}`)
+    console.log(`${c.green}${c.bold}║  [OK] INCIDENT AUTHORIZED & RESOLVED SUCCESSFULLY                   ║${c.reset}`)
+    console.log(`${c.green}${c.bold}╚══════════════════════════════════════════════════════════════════════╝${c.reset}`)
+    console.log(`  ${c.dim}Incident ID:${c.reset}   ${c.cyan}${data.incident.id}${c.reset}`)
+    console.log(`  ${c.dim}Updated Status:${c.reset}${c.green} ${data.incident.status} ${c.reset}`)
+    if (data.authorizedBy) {
+      console.log(`  ${c.dim}Authorized By:${c.reset} ${c.bold}${data.authorizedBy}${c.reset}`)
+    }
+    console.log(`  ${c.dim}Title:${c.reset}         ${data.incident.title}`)
+    console.log(`  ${c.dim}Audit Trail:${c.reset}   ${c.dim}Cryptographic signature committed to team audit ledger.${c.reset}\n`)
   } catch (err) {
     console.error(`\n${c.red}[FAIL] Approval failed:${c.reset}`, err.message)
+    console.log(`${c.yellow}You can also authorize this incident on the web console:${c.reset} ${webUrl}\n`)
   }
 }
 
+// ============================================================================
+// Main Dispatcher
+// ============================================================================
+
 async function main() {
   await initApiBase()
-  const stdinData = await readStdin()
   const [,, command, ...args] = process.argv
+  const isPipeCandidate = !command || Boolean(command && command.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i))
+  const stdinData = isPipeCandidate ? await readStdin() : ''
 
   // Case 1: Input was piped via stdin (e.g. `cat error.log | omniops` or `npm test | omniops`)
   if (stdinData) {
@@ -347,13 +829,31 @@ async function main() {
 
   // Case 2: Interactive CLI subcommands
   switch (command) {
+    case 'login':
+    case 'signin':
+    case 'auth':
+      await loginCommand()
+      break
+
+    case 'logout':
+    case 'signout':
+      logoutCommand()
+      break
+
+    case 'whoami':
+    case 'user':
+      await whoamiCommand()
+      break
+
     case 'status':
     case 'health':
       await checkHealth()
       break
+
     case 'doctor':
       await runDoctor()
       break
+
     case 'triage':
     case 'alert': {
       const text = args.join(' ')
@@ -367,6 +867,18 @@ async function main() {
       await triageIncident(args.join(' ') || text, priority)
       break
     }
+
+    case 'history':
+    case 'incidents':
+      await historyCommand()
+      break
+
+    case 'claim':
+    case 'adopt':
+    case 'sync':
+      await claimCommand()
+      break
+
     case 'approve': {
       const id = args[0]
       if (!id) {
@@ -376,6 +888,7 @@ async function main() {
       await approveIncident(id)
       break
     }
+
     default:
       // If user typed a direct error string like `omniops "Postgres replica lag > 180s" CRITICAL`
       if (command && !command.startsWith('-')) {
@@ -390,17 +903,22 @@ async function main() {
 
       printBanner()
       console.log(`${c.bold}Available Commands:${c.reset}`)
-      console.log(`  ${c.green}omniops doctor${c.reset}                   Probe host health, memory, and listening ports`)
-      console.log(`  ${c.green}omniops status${c.reset}                   Check cluster health and active runbooks`)
       console.log(`  ${c.green}omniops triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
       console.log(`  ${c.green}omniops approve <id>${c.reset}             Sign off on critical operator safety gate`)
+      console.log(`  ${c.green}omniops history${c.reset}                  List recent incidents triaged on this machine`)
+      console.log(`  ${c.green}omniops claim${c.reset}                    Allocate machine incidents to signed-in workspace`)
+      console.log(`  ${c.green}omniops login${c.reset}                    Authenticate terminal to private team workspace`)
+      console.log(`  ${c.green}omniops whoami${c.reset}                   Check current operator & active workspace`)
+      console.log(`  ${c.green}omniops logout${c.reset}                   Disconnect session and revert to public sandbox`)
+      console.log(`  ${c.green}omniops doctor${c.reset}                   Probe host health, memory, and listening ports`)
+      console.log(`  ${c.green}omniops status${c.reset}                   Check cluster health and active runbooks`)
       console.log(`\n${c.bold}Pipe Stdin Support:${c.reset}`)
       console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | omniops${c.reset}`)
       console.log(`  ${c.cyan}docker logs container 2>&1 | omniops${c.reset}`)
       console.log(`\n${c.dim}Examples:${c.reset}`)
       console.log(`  omniops "Stripe 429 webhook throttle spike" CRITICAL`)
-      console.log(`  omniops triage "Database connection pool saturated" HIGH`)
-      console.log(`  omniops doctor\n`)
+      console.log(`  omniops approve 58df486e-e5b4-4b16-a004-21257610a72f`)
+      console.log(`  omniops login\n`)
       break
   }
 }

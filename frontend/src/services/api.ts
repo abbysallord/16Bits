@@ -142,6 +142,23 @@ export async function fetchIncidentDetails(id: string): Promise<{ incident: Inci
   return res.json()
 }
 
+export async function claimIncidents(incidentIds: string[], token?: string): Promise<{ claimedCount: number; claimedIds: string[] }> {
+  if (!incidentIds.length) return { claimedCount: 0, claimedIds: [] }
+  const headers = authHeaders({ 'Content-Type': 'application/json' })
+  if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agents/claim`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ incidentIds })
+    })
+    if (!res.ok) return { claimedCount: 0, claimedIds: [] }
+    return res.json()
+  } catch {
+    return { claimedCount: 0, claimedIds: [] }
+  }
+}
+
 export async function runSwarm(payload: {
   title: string
   description: string

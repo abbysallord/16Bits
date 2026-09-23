@@ -4,6 +4,7 @@ import { db } from '../db/database.js'
 import { createIncidentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
 import { requireAuth, resolveOrg, AuthenticatedRequest } from '../middleware/auth.js'
+import { DEMO_ORG_ID } from '../services/orgService.js'
 
 export const incidentRouter = Router()
 
@@ -30,9 +31,15 @@ incidentRouter.get('/', resolveOrg, async (req: AuthenticatedRequest, res: Respo
 // Get incident details with full agent execution audit trail
 incidentRouter.get('/:id', resolveOrg, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const incident = await db.get('SELECT * FROM incidents WHERE id = ?', [req.params.id]) as any
-  if (!incident || incident.org_id !== req.orgId) {
-    // Another team's incident: signed-out visitors are told to sign in, members of other teams get 404
-    if (incident && !req.user) {
+  if (!incident) {
+    res.status(404).json({ error: 'Incident not found' })
+    return
+  }
+
+  const isDemo = incident.org_id === DEMO_ORG_ID || !incident.org_id
+  const isOwnOrg = incident.org_id === req.orgId
+  if (!isOwnOrg && !isDemo) {
+    if (!req.user) {
       res.status(401).json({ error: 'Sign in with your team account to view this incident' })
       return
     }

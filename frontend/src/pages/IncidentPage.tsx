@@ -142,6 +142,11 @@ export default function IncidentPage() {
                   <p className="font-code mt-1" style={{ fontSize: 10, color: 'var(--ink-dim)' }}>
                     Review the plan below. Approval is recorded with your operator identity. OmniOps does not run the commands.
                   </p>
+                  {(incident as any)?.org_id === 'demo' && user && user.orgId !== 'demo' && (
+                    <p className="font-code mt-1.5" style={{ fontSize: 10, color: 'var(--accent)' }}>
+                      [WORKSPACE ADOPTION]: This incident was triaged from the CLI/demo. Authorizing will claim it into your private team workspace ({user.orgName || 'Private Team'}) and record it in your permanent /audit ledger.
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={approve}

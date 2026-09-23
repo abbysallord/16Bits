@@ -159,6 +159,13 @@ function ConsoleView() {
           setActiveStep(4)
           setIsExecuting(false)
           setFinalResult(result)
+          try {
+            const list = JSON.parse(localStorage.getItem('omniops_recent_incidents') || '[]')
+            if (!list.includes(result.incidentId)) {
+              list.unshift(result.incidentId)
+              localStorage.setItem('omniops_recent_incidents', JSON.stringify(list.slice(0, 30)))
+            }
+          } catch {}
           loadIncidents()
         },
         (err) => {

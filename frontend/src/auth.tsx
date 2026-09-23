@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { ShieldCheck, LogOut } from 'lucide-react'
-import { loginUser, registerUser, checkBackendHealth } from './services/api'
+import { loginUser, registerUser, checkBackendHealth, claimIncidents } from './services/api'
 import type { User } from './services/api'
 
 // Public demo operator seeded by the backend (see seedDemoData in backend/src/server.ts)
@@ -60,6 +60,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSignInCount((n) => n + 1)
     setDialogOpen(false)
     settle(s.token)
+
+    // Auto-claim any unassigned/demo incidents worked on in this browser into the operator's workspace
+    try {
+      const recent = JSON.parse(localStorage.getItem('omniops_recent_incidents') || '[]')
+      if (Array.isArray(recent) && recent.length > 0 && s.user?.orgId && s.user.orgId !== 'demo') {
+        claimIncidents(recent, s.token).catch(() => {})
+      }
+    } catch {}
   }
 
   const logout = useCallback(() => {

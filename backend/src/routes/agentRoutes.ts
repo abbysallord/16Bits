@@ -167,10 +167,17 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
   if (!incidentId || typeof incidentId !== 'string') {
     res.status(400).json({ error: 'incidentId is required' })
     return
+  // Scoped to the approver's team: check if it belongs to this team, or if it was created in the demo sandbox
+  let existing = await db.get('SELECT status, org_id FROM incidents WHERE id = ? AND org_id = ?', [incidentId, req.orgId]) as { status: string; org_id: string } | undefined
+  if (!existing) {
+    // If the incident was created in the demo sandbox (e.g. unauthenticated CLI triage), adopt it into the operator's private workspace
+    const demoIncident = await db.get('SELECT status, org_id FROM incidents WHERE id = ? AND (org_id = ? OR org_id IS NULL)', [incidentId, DEMO_ORG_ID]) as { status: string; org_id: string } | undefined
+    if (demoIncident && req.orgId) {
+      await db.run('UPDATE incidents SET org_id = ? WHERE id = ?', [req.orgId, incidentId])
+      existing = { status: demoIncident.status, org_id: req.orgId }
+    }
   }
 
-  // Scoped to the approver's team: another team's incident looks like it does not exist
-  const existing = await db.get('SELECT status FROM incidents WHERE id = ? AND org_id = ?', [incidentId, req.orgId]) as { status: string } | undefined
   if (!existing) {
     res.status(404).json({ error: 'Incident not found' })
     return
@@ -198,6 +205,39 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
+})
+
+// Batch claim/adopt demo incidents into the caller's private team workspace
+agentRouter.post('/claim', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { incidentIds } = req.body
+  if (!Array.isArray(incidentIds) || incidentIds.length === 0) {
+    res.status(400).json({ error: 'incidentIds array is required' })
+    return
+  }
+  const cleanIds = incidentIds.filter((id) => typeof id === 'string' && id.trim()).slice(0, 50)
+  if (cleanIds.length === 0) {
+    res.json({ claimedCount: 0, claimedIds: [] })
+    return
+  }
+
+  const placeholders = cleanIds.map(() => '?').join(',')
+  const toClaim = await db.all<{ id: string }>(
+    `SELECT id FROM incidents WHERE id IN (${placeholders}) AND (org_id = ? OR org_id IS NULL)`,
+    [...cleanIds, DEMO_ORG_ID]
+  )
+  const idsToUpdate = toClaim.map(r => r.id)
+  if (idsToUpdate.length > 0) {
+    const updatePlaceholders = idsToUpdate.map(() => '?').join(',')
+    await db.run(
+      `UPDATE incidents SET org_id = ? WHERE id IN (${updatePlaceholders})`,
+      [req.orgId, ...idsToUpdate]
+    )
+  }
+  res.json({
+    message: `Claimed ${idsToUpdate.length} incident(s) into your team workspace`,
+    claimedCount: idsToUpdate.length,
+    claimedIds: idsToUpdate
+  })
 })
 
 // Resolve (or create) the incident a console/CLI run works on, inside the caller's team.
