@@ -167,6 +167,8 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
   if (!incidentId || typeof incidentId !== 'string') {
     res.status(400).json({ error: 'incidentId is required' })
     return
+  }
+
   // Scoped to the approver's team: check if it belongs to this team, or if it was created in the demo sandbox
   let existing = await db.get('SELECT status, org_id FROM incidents WHERE id = ? AND org_id = ?', [incidentId, req.orgId]) as { status: string; org_id: string } | undefined
   if (!existing) {
