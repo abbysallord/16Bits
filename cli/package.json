@@ -1,6 +1,6 @@
 {
   "name": "omniops",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Autonomous site reliability and incident response swarm for enterprise production systems",
   "type": "module",
   "main": "omniops.js",

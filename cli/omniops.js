@@ -43,18 +43,22 @@ const c = {
   yellow: '\x1b[33m',
   red: '\x1b[31m',
   magenta: '\x1b[35m',
+  white: '\x1b[37m',
   bgGreen: '\x1b[42m\x1b[30m',
   bgYellow: '\x1b[43m\x1b[30m',
-  bgCyan: '\x1b[46m\x1b[30m'
+  bgCyan: '\x1b[46m\x1b[30m',
+  bgRed: '\x1b[41m\x1b[37m',
 }
 
 function printBanner() {
-  const engineLabel = API_BASE.includes('localhost') ? 'Local Dev Engine' : 'Production Cloud Engine'
+  const isCloud = !API_BASE.includes('localhost')
+  const engineLabel = isCloud ? 'Production Cloud' : 'Localhost Dev'
   console.log(`
-${c.cyan}${c.bold}╔══════════════════════════════════════════════════════╗
-║  [16BITS] OmniOps — Autonomous Operations Swarm CLI  ║
-╚══════════════════════════════════════════════════════╝${c.reset}
-${c.dim}  Connected to Engine [${engineLabel}]: ${API_BASE}${c.reset}
+${c.cyan}${c.bold}╔══════════════════════════════════════════════════════════════╗
+║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.2) ║
+║  ${c.dim}// 4-AGENT SWARM · AST CODE KNOWLEDGE · LANGSMITH TRACED //${c.cyan} ║
+╚══════════════════════════════════════════════════════════════╝${c.reset}
+  ${c.dim}Engine Link:${c.reset} [${isCloud ? c.green + engineLabel : c.yellow + engineLabel}${c.reset}] -> ${c.cyan}${API_BASE}${c.reset}
 `)
 }
 
@@ -194,9 +198,15 @@ function renderTerminalMarkdown(md) {
 
 async function triageIncident(query, priority = 'HIGH') {
   printBanner()
+  
+  const prioUpper = priority.toUpperCase()
+  const prioBadge = prioUpper === 'CRITICAL'
+    ? `${c.bgRed} CRITICAL ${c.reset}`
+    : (prioUpper === 'HIGH' ? `${c.bgYellow} HIGH ${c.reset}` : `${c.bgCyan} ${prioUpper} ${c.reset}`)
+
   console.log(`${c.bold}Initiating 4-Agent Swarm Triage...${c.reset}`)
-  console.log(`${c.dim}Incident Payload:${c.reset}\n"${query.slice(0, 160)}${query.length > 160 ? '...' : ''}"`)
-  console.log(`${c.dim}Priority Target:${c.reset}  ${priority}\n`)
+  console.log(`${c.dim}Severity Target:${c.reset} ${prioBadge}`)
+  console.log(`${c.dim}Incident Payload:${c.reset}\n"${query.slice(0, 160)}${query.length > 160 ? '...' : ''}"\n`)
 
   const startTime = Date.now()
 
@@ -226,31 +236,40 @@ async function triageIncident(query, priority = 'HIGH') {
       const statusIcon = log.agentName.includes('Verification') && result.status === 'AWAITING_APPROVAL'
         ? `${c.yellow}[HALT]${c.reset}`
         : `${c.green}[OK]${c.reset}`
-      console.log(`${c.cyan}│${c.reset}  ${statusIcon} ${c.bold}${stepBadge.padEnd(28)}${c.reset} ${c.dim}• ${log.action.slice(0, 40)}...${c.reset}`)
+      console.log(`${c.cyan}│${c.reset}  ${statusIcon} ${c.bold}${stepBadge.padEnd(28)}${c.reset} ${c.dim}• ${log.action.slice(0, 42)}...${c.reset}`)
 
-      if (log.stepNumber === 2 && result.matchedRunbookTitle) {
-        console.log(`${c.cyan}│${c.reset}     ${c.dim}└─ SOP Runbook: "${result.matchedRunbookTitle}"${c.reset}`)
+      if (log.stepNumber === 2) {
+        if (result.matchedRunbookTitle) {
+          console.log(`${c.cyan}│${c.reset}     ${c.dim}├─ SOP Runbook:${c.reset}  "${result.matchedRunbookTitle}"`)
+        }
+        if (log.dataPayload?.inspectedFile) {
+          console.log(`${c.cyan}│${c.reset}     ${c.dim}├─ Code Inspect:${c.reset} ${c.green}[${log.dataPayload.inspectedFile}] (AST Verified)${c.reset}`)
+        }
+        if (log.dataPayload?.astKnowledgeGraph) {
+          console.log(`${c.cyan}│${c.reset}     ${c.dim}└─ Architecture:${c.reset} ${c.magenta}${log.dataPayload.astKnowledgeGraph}${c.reset}`)
+        }
       }
       if (log.stepNumber === 3) {
         const ruling = result.status === 'AWAITING_APPROVAL' ? 'OPERATOR AUTHORIZATION REQUIRED' : 'VERIFIED SAFE'
-        console.log(`${c.cyan}│${c.reset}     ${c.dim}└─ Safety Guardrail: [${ruling}]${c.reset}`)
+        console.log(`${c.cyan}│${c.reset}     ${c.dim}└─ Safety Gate:${c.reset}   [${ruling}]`)
       }
     })
     console.log(`${c.cyan}└───${'─'.repeat(68)}┘${c.reset}\n`)
 
     // 2. Render Formatted Remediation Playbook
-    console.log(`${c.bold}${c.green}=== [Synthesized Remediation Plan] ===${c.reset}`)
+    console.log(`${c.bold}${c.green}=== [Synthesized Remediation Playbook] ===${c.reset}`)
     console.log(renderTerminalMarkdown(result.finalResolution))
 
     // 3. Execution Summary Box
-    console.log(`\n${c.dim}────────────────────────────────────────────────────────────────────────${c.reset}`)
-    console.log(`${c.bold}Status:${c.reset}          ${result.status === 'AWAITING_APPROVAL' ? c.bgYellow + ' [HALT: AWAITING OPERATOR APPROVAL] ' + c.reset : c.bgGreen + ' [OK: RESOLVED] ' + c.reset}`)
-    console.log(`${c.bold}Execution Time:${c.reset}  ${result.executionDurationMs}ms (Swarm Turnaround)`)
-    console.log(`${c.bold}Incident ID:${c.reset}     ${c.cyan}${result.incidentId}${c.reset}`)
+    console.log(`\n${c.dim}┌── [Swarm Execution Summary] ──────────────────────────────────────────┐${c.reset}`)
+    console.log(`${c.dim}│${c.reset}  ${c.bold}Status:${c.reset}          ${result.status === 'AWAITING_APPROVAL' ? c.bgYellow + ' [HALT: AWAITING OPERATOR APPROVAL] ' + c.reset : c.bgGreen + ' [OK: RESOLVED] ' + c.reset}`)
+    console.log(`${c.dim}│${c.reset}  ${c.bold}Turnaround:${c.reset}      ${c.bold}${c.green}${result.executionDurationMs}ms${c.reset} ${c.dim}(Autonomous Sub-3s SLA)${c.reset}`)
+    console.log(`${c.dim}│${c.reset}  ${c.bold}Incident ID:${c.reset}     ${c.cyan}${result.incidentId}${c.reset}`)
 
     if (result.langsmithTraceUrl) {
-      console.log(`${c.bold}LangSmith Trace:${c.reset} ${c.cyan}${result.langsmithTraceUrl}${c.reset}`)
+      console.log(`${c.dim}│${c.reset}  ${c.bold}LangSmith Trace:${c.reset} ${c.cyan}${result.langsmithTraceUrl}${c.reset}`)
     }
+    console.log(`${c.dim}└───────────────────────────────────────────────────────────────────────┘${c.reset}`)
 
     if (result.status === 'AWAITING_APPROVAL') {
       console.log(`\n${c.yellow}${c.bold}--> To authorize and sign off this execution:${c.reset}`)

@@ -302,7 +302,7 @@ function ConsoleView() {
               className="nes-btn is-warning nes-btn-xs font-arcade"
               style={{ textDecoration: 'none', fontSize: 9 }}
             >
-              NPM: omniops@1.0.1
+              NPM: omniops@1.0.2
             </a>
           </div>
         </div>
@@ -770,7 +770,7 @@ function ConsoleView() {
                     <li>- Express.js + JWT (Active)</li>
                     <li>- SQLite WAL Mode (Active)</li>
                     <li>- LangSmith Tracing (Active)</li>
-                    <li>- npm: omniops@1.0.0</li>
+                    <li>- npm: omniops@1.0.2</li>
                   </ul>
                 </div>
                 <div>
