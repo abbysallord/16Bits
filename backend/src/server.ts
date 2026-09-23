@@ -70,7 +70,7 @@ async function seedDemoData() {
 
 seedDemoData().then(() => {
   app.listen(PORT, () => {
-    console.log(`⚡ [16Bits OmniOps] Express server running at http://localhost:${PORT}`)
+    console.log(`[16Bits OmniOps] Express server running at http://localhost:${PORT}`)
   })
 }).catch(err => {
   console.error('[Seed Error]:', err)
