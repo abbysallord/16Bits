@@ -1,71 +1,155 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import {
   Zap,
   Activity,
   ShieldCheck,
-  CheckCircle2,
   Clock,
   Terminal,
-  Play,
-  Layers,
   Search,
   Sparkles,
-  ExternalLink,
-  Presentation,
-  Check,
   Database,
   ArrowRight,
   FileText,
   Copy,
-  CheckCheck
+  CheckCheck,
+  CircleDot,
 } from 'lucide-react'
 import {
   checkBackendHealth,
   fetchIncidents,
   streamSwarm,
-  approveIncident
+  approveIncident,
 } from './services/api'
 import type {
   Incident,
   AgentStepLog,
   SwarmResult,
-  HealthStatus
+  HealthStatus,
 } from './services/api'
+import { buildSimulation } from './services/simulation'
 
-export default function App() {
+// ---------------------------------------------------------------------------
+// Local sketch state (DB-less so the UI is demo-able before backend exists)
+// ---------------------------------------------------------------------------
+
+interface PendingIncident {
+  id: string
+  title: string
+  description: string
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  status: 'PENDING' | 'ANALYZING' | 'RESOLVED'
+  resolution?: string
+}
+
+const SAMPLES: Array<{
+  key: string
+  label: string
+  title: string
+  description: string
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+}> = [
+  {
+    key: '1',
+    label: 'STRIPE WEBHOOK 429',
+    title: 'Payment Webhook Ingestion Throttle on Stripe Gateway',
+    description:
+      'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on settlement callbacks.',
+    priority: 'CRITICAL',
+  },
+  {
+    key: '2',
+    label: 'PG REPLICA LAG',
+    title: 'Database Read-Replica Replication Lag Exceeding 180s',
+    description:
+      'Analytics queries are reading stale financial transaction balances due to replication lag spike on PostgreSQL replica cluster.',
+    priority: 'HIGH',
+  },
+  {
+    key: '3',
+    label: 'ICU TELEMETRY DROP',
+    title: 'ICU Cardiac Telemetry Pipeline WebSocket Drop',
+    description:
+      'Hospital central monitoring hub dropped real-time ECG telemetry stream from 48 bedside cardiac monitors across Ward 3.',
+    priority: 'CRITICAL',
+  },
+]
+
+const AGENTS = [
+  {
+    stage: 1,
+    name: 'PLANNER',
+    desc: 'Decomposes incident into an execution DAG + investigation plan.',
+    color: '#209cee',
+    icon: Sparkles,
+  },
+  {
+    stage: 2,
+    name: 'INVESTIGATOR',
+    desc: 'Runs telemetry queries, SLA checks, customer profile audits.',
+    color: '#ad8bc9',
+    icon: Search,
+  },
+  {
+    stage: 3,
+    name: 'VERIFIER',
+    desc: 'Safety gate: enforces constraints + SLA compliance pre-execution.',
+    color: '#f7d51d',
+    icon: ShieldCheck,
+  },
+  {
+    stage: 4,
+    name: 'SYNTHESIZER',
+    desc: 'Writes the remediation playbook + stakeholder comms.',
+    color: '#92cc41',
+    icon: Activity,
+  },
+] as const
+
+function App() {
+  // backend health + incidents (real API when available)
   const [health, setHealth] = useState<HealthStatus | null>(null)
-  const [, setIncidents] = useState<Incident[]>([])
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
-  const [activeStep, setActiveStep] = useState<number>(0)
-  const [logs, setLogs] = useState<AgentStepLog[]>([])
-  const [isExecuting, setIsExecuting] = useState<boolean>(false)
-  const [finalResult, setFinalResult] = useState<SwarmResult | null>(null)
-  const [copied, setCopied] = useState<boolean>(false)
-  const [isApproving, setIsApproving] = useState<boolean>(false)
-  const [approvedLocally, setApprovedLocally] = useState<boolean>(false)
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [pending, setPending] = useState<PendingIncident[]>([])
 
-  // Incident form state
-  const [title, setTitle] = useState<string>('Payment Webhook Ingestion Throttle on Stripe Gateway')
-  const [description, setDescription] = useState<string>(
-    'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on settlement callbacks.'
-  )
+  // trigger form
+  const [title, setTitle] = useState(SAMPLES[0].title)
+  const [description, setDescription] = useState(SAMPLES[0].description)
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('CRITICAL')
+
+  // swarm run
+  const [activeStep, setActiveStep] = useState(0)
+  const [logs, setLogs] = useState<AgentStepLog[]>([])
+  const [isExecuting, setIsExecuting] = useState(false)
+  const [finalResult, setFinalResult] = useState<SwarmResult | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [isApproving, setIsApproving] = useState(false)
+  const [approvedLocally, setApprovedLocally] = useState(false)
+
+  const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     checkBackendHealth().then(setHealth).catch(() => setHealth(null))
     loadIncidents()
   }, [])
 
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+  }, [logs])
+
   const loadIncidents = async () => {
     try {
       const data = await fetchIncidents()
       setIncidents(data)
-      if (data.length > 0 && !selectedIncident) {
-        setSelectedIncident(data[0])
-      }
     } catch {
-      // ignore
+      setIncidents([])
     }
+  }
+
+  const selectSample = (s: (typeof SAMPLES)[number]) => {
+    setTitle(s.title)
+    setDescription(s.description)
+    setPriority(s.priority)
   }
 
   const handleRunSwarm = async (e?: React.FormEvent) => {
@@ -76,33 +160,71 @@ export default function App() {
     setActiveStep(1)
     setLogs([])
     setFinalResult(null)
+    setApprovedLocally(false)
+    setPending((prev) => [
+      ...prev.filter((p) => p.title !== title),
+      {
+        id: `local-${Date.now()}`,
+        title,
+        description,
+        priority,
+        status: 'ANALYZING',
+      },
+    ])
 
-    await streamSwarm(
-      { title, description, priority, category: 'Fintech Operations' },
-      (step) => {
-        setActiveStep(step.stepNumber)
-        setLogs((prev) => [...prev, step])
-      },
-      (result) => {
-        setActiveStep(4)
-        setIsExecuting(false)
-        setFinalResult(result)
-        loadIncidents()
-      },
-      (err) => {
-        setIsExecuting(false)
-        alert(`Swarm execution error: ${err}`)
-      }
-    )
+    const hasBackend = health?.status === 'ok'
+
+    if (hasBackend) {
+      await streamSwarm(
+        { title, description, priority, category: 'Fintech Operations' },
+        (step) => {
+          setActiveStep(step.stepNumber)
+          setLogs((prev) => [...prev, step])
+        },
+        (result) => {
+          setActiveStep(4)
+          setIsExecuting(false)
+          setFinalResult(result)
+          loadIncidents()
+        },
+        (err) => {
+          setIsExecuting(false)
+          alert(`Swarm execution error: ${err}`)
+        }
+      )
+    } else {
+      // SKETCH MODE: simulated agent run so the UI is demo-able offline
+      const { steps, result } = buildSimulation(title, priority)
+      let t = 0
+      steps.forEach((step, idx) => {
+        t += idx === 0 ? 300 : 1600
+        setTimeout(() => {
+          setActiveStep(step.stepNumber)
+          setLogs((prev) => [...prev, step])
+          if (idx === steps.length - 1) {
+            setTimeout(() => {
+              setFinalResult(result)
+              setIsExecuting(false)
+              setPending((prev) =>
+                prev.map((p) =>
+                  p.title === title ? { ...p, status: 'RESOLVED', resolution: result.finalResolution } : p
+                )
+              )
+            }, 900)
+          }
+        }, t)
+      })
+    }
   }
 
   const handleApprove = async () => {
     if (!finalResult) return
     setIsApproving(true)
     try {
-      await approveIncident(finalResult.incidentId, 'Lead Operator (Dhanush)')
+      if (health?.status === 'ok') {
+        await approveIncident(finalResult.incidentId, 'Lead Operator')
+      }
       setApprovedLocally(true)
-      loadIncidents()
     } catch (err: any) {
       alert(`Approval error: ${err.message}`)
     } finally {
@@ -110,409 +232,519 @@ export default function App() {
     }
   }
 
-  const selectBenchmark = (sampleTitle: string, sampleDesc: string, samplePriority: 'CRITICAL' | 'HIGH' | 'MEDIUM') => {
-    setTitle(sampleTitle)
-    setDescription(sampleDesc)
-    setPriority(samplePriority)
+  const copyResult = () => {
+    if (!finalResult) return
+    navigator.clipboard.writeText(finalResult.finalResolution)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
+  const backendOnline = health?.status === 'ok'
+
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-emerald-500/30">
-      {/* Top Header */}
-      <header className="sticky top-0 z-50 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-md px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold tracking-tight text-lg text-white">16Bits OmniOps</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-950/30 text-emerald-400 font-semibold">
-                  AGENTIC AI SWARM
-                </span>
-              </div>
-              <p className="text-xs text-neutral-500">Express.js • SQLite • Gemini/Groq • Multi-Agent Pipeline</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-full border border-neutral-800 bg-neutral-900/60">
-              <Database className="h-3.5 w-3.5 text-blue-400" />
-              <span className="text-neutral-300">SQLite Active</span>
-              <span className="text-neutral-500">•</span>
-              <span className="text-emerald-400 font-medium">API: {health?.status === 'ok' ? 'Online (8000)' : 'Offline'}</span>
-            </div>
-
-            <a
-              href="http://localhost:3030"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 text-xs text-neutral-300 transition"
+    <Routes>
+      <Route
+        path="*"
+        element={
+          <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f8f8' }}>
+            {/* ============ HEADER ============ */}
+            <header
+              className="sticky top-0 z-50"
+              style={{
+                backgroundColor: '#f8f8f8',
+                borderBottom: '4px solid #212529',
+              }}
             >
-              <Presentation className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Pitch Deck</span>
-              <ExternalLink className="h-3 w-3 text-neutral-500" />
-            </a>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
-        {/* 4-Agent Visual State Graph */}
-        <section className="bg-neutral-900/40 border border-neutral-800/80 rounded-2xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Layers className="h-4 w-4 text-emerald-400" />
-              <span>Multi-Agent Consensus Pipeline</span>
-            </div>
-            <span className="text-xs font-mono text-neutral-500">
-              Status: {isExecuting ? 'AUTONOMOUS EXECUTION IN PROGRESS' : 'SWARM READY'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Agent 1 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 1 && isExecuting
-                ? 'border-blue-500 bg-blue-950/30 shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/40 animate-pulse'
-                : activeStep > 1
-                ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
-                  Stage 1 {activeStep === 1 && isExecuting && '• RUNNING'}
-                </span>
-                {activeStep > 1 && <Check className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-blue-400" /> Planner Agent
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Decomposes incident into execution DAG & investigation requirements.
-              </p>
-            </div>
-
-            {/* Agent 2 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 2 && isExecuting
-                ? 'border-purple-500 bg-purple-950/30 shadow-lg shadow-purple-500/20 ring-2 ring-purple-500/40 animate-pulse'
-                : activeStep > 2
-                ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
-                  Stage 2 {activeStep === 2 && isExecuting && '• RUNNING'}
-                </span>
-                {activeStep > 2 && <Check className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <Search className="h-3.5 w-3.5 text-purple-400" /> Investigator Agent
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Executes telemetry tool queries, SLA checks, and customer profile audit.
-              </p>
-            </div>
-
-            {/* Agent 3 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 3 && isExecuting
-                ? 'border-amber-500 bg-amber-950/30 shadow-lg shadow-amber-500/20 ring-2 ring-amber-500/40 animate-pulse'
-                : activeStep > 3
-                ? 'border-neutral-700 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
-                  Stage 3 {activeStep === 3 && isExecuting && '• RUNNING'}
-                </span>
-                {activeStep > 3 && <Check className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5 text-amber-400" /> Verification Gate
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Enforces safety constraints & SLA contract compliance before execution.
-              </p>
-            </div>
-
-            {/* Agent 4 */}
-            <div className={`p-4 rounded-xl border transition-all ${
-              activeStep === 4 && isExecuting
-                ? 'border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/40 animate-pulse'
-                : finalResult
-                ? 'border-emerald-500/80 bg-neutral-900/80 text-neutral-300'
-                : 'border-neutral-800 bg-neutral-950/50 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                  Stage 4 {activeStep === 4 && isExecuting && '• RUNNING'}
-                </span>
-                {finalResult && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-              </div>
-              <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <Activity className="h-3.5 w-3.5 text-emerald-400" /> Synthesizer Agent
-              </h4>
-              <p className="text-xs text-neutral-400 mt-1">
-                Generates actionable remediation playbook & stakeholder comms.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Workspace Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Form & Benchmarks */}
-          <div className="lg:col-span-5 space-y-4">
-            {/* Quick Benchmark Presets */}
-            <div className="bg-neutral-900/40 border border-neutral-800/80 rounded-xl p-4">
-              <span className="text-xs font-mono uppercase tracking-wider text-neutral-400 block mb-2 font-semibold">
-                Instant Judge Demo Scenarios (1-Click)
-              </span>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectBenchmark(
-                      'Payment Webhook Ingestion Throttle on Stripe Gateway',
-                      'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on settlement callbacks.',
-                      'CRITICAL'
-                    )
-                  }
-                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
-                >
-                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
-                    <span>1. Stripe Webhook 429 Rate Limit</span>
-                    <span className="text-[10px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">CRITICAL</span>
-                  </div>
-                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
-                    Queue depth 4,120 items; Platinum enterprise SLA risk.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectBenchmark(
-                      'Database Read-Replica Replication Lag Exceeding 180s',
-                      'Analytics queries are reading stale financial transaction balances due to replication lag spike on PostgreSQL replica cluster.',
-                      'HIGH'
-                    )
-                  }
-                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
-                >
-                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
-                    <span>2. PostgreSQL Replication Lag</span>
-                    <span className="text-[10px] font-mono text-amber-400 bg-amber-950/30 px-1.5 py-0.5 rounded">HIGH</span>
-                  </div>
-                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
-                    Lag exceeding 180s; inconsistent financial reporting.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectBenchmark(
-                      'ICU Cardiac Telemetry Pipeline WebSocket Drop',
-                      'Hospital central monitoring hub dropped real-time ECG telemetry stream from 48 bedside cardiac monitors across Ward 3.',
-                      'CRITICAL'
-                    )
-                  }
-                  className="w-full text-left p-2.5 rounded-lg border border-neutral-800 bg-neutral-950/60 hover:border-emerald-500/50 transition text-xs group"
-                >
-                  <div className="flex items-center justify-between font-semibold text-white group-hover:text-emerald-400">
-                    <span>3. Healthcare ICU Telemetry Drop</span>
-                    <span className="text-[10px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">CRITICAL</span>
-                  </div>
-                  <p className="text-neutral-400 text-[11px] mt-1 line-clamp-1">
-                    48 bedside ECG monitors dropped; immediate failover required.
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            {/* Incident Trigger Form */}
-            <form onSubmit={handleRunSwarm} className="bg-neutral-900/40 border border-neutral-800/80 rounded-xl p-5 space-y-4">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Terminal className="h-4 w-4 text-emerald-400" /> Trigger Autonomous Swarm
-              </h3>
-
-              <div>
-                <label className="text-xs text-neutral-400 font-mono mb-1 block">INCIDENT TITLE</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={isExecuting}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
-                  placeholder="e.g. Critical Kafka consumer lag spike"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-neutral-400 font-mono mb-1 block">DESCRIPTION / TELEMETRY</label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={isExecuting}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-emerald-500 transition leading-relaxed"
-                  placeholder="Describe the operational failure or paste error logs..."
-                />
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-neutral-400 font-mono mb-1 block">PRIORITY</label>
-                  <select
-                    value={priority}
-                    onChange={(e: any) => setPriority(e.target.value)}
-                    disabled={isExecuting}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="CRITICAL">CRITICAL (15m SLA)</option>
-                    <option value="HIGH">HIGH (1h SLA)</option>
-                    <option value="MEDIUM">MEDIUM (4h SLA)</option>
-                    <option value="LOW">LOW (24h SLA)</option>
-                  </select>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isExecuting || !title.trim()}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg font-semibold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20"
-              >
-                {isExecuting ? (
-                  <>
-                    <Clock className="h-4 w-4 animate-spin" />
-                    <span>Orchestrating Swarm Execution...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" />
-                    <span>Dispatch 4-Agent Swarm</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Right Column: Real-Time Execution Audit Logs & Final Resolution */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* Live Agent Logs Stream */}
-            <div className="bg-neutral-900/40 border border-neutral-800/80 rounded-xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Activity className="h-4 w-4 text-emerald-400" />
-                  <span>Autonomous Agent Execution Stream</span>
-                </div>
-                {finalResult && (
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 font-bold">
-                    Resolved in {finalResult.executionDurationMs}ms
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2">
-                {logs.length === 0 ? (
-                  <div className="py-12 text-center text-neutral-500 text-xs font-mono">
-                    Awaiting trigger. Click "Dispatch 4-Agent Swarm" to observe real-time agent coordination.
-                  </div>
-                ) : (
-                  logs.map((log, idx) => (
-                    <div key={idx} className="p-3.5 rounded-lg border border-neutral-800 bg-neutral-950/70 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-400 font-mono flex items-center gap-1.5">
-                          <ArrowRight className="h-3 w-3" /> {log.agentName}
-                        </span>
-                        <span className="text-[10px] font-mono text-neutral-500">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div className="text-neutral-300 font-mono text-[11px] bg-neutral-900/60 p-2 rounded border border-neutral-800/60">
-                        {log.action}
-                      </div>
-                      <p className="text-neutral-400 text-xs leading-relaxed whitespace-pre-wrap">
-                        {log.thought}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Final Synthesized Resolution Card */}
-            {finalResult && (
-              <div className="bg-neutral-900/40 border border-emerald-500/30 rounded-xl p-5 space-y-3 shadow-lg shadow-emerald-500/5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-white text-sm">
-                    <FileText className="h-4 w-4 text-emerald-400" />
-                    <span>Synthesized Resolution & Actionable Plan</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(finalResult.finalResolution)
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 2000)
+              <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      backgroundColor: '#212529',
+                      color: '#92cc41',
+                      boxShadow: '4px 4px 0px rgba(0,0,0,0.4)',
                     }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-mono text-neutral-300 transition"
                   >
-                    {copied ? (
-                      <>
-                        <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
-                        <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5 text-neutral-400" />
-                        <span>Copy Fix</span>
-                      </>
-                    )}
-                  </button>
+                    <Zap size={22} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <span className="font-arcade" style={{ fontSize: 13, fontWeight: 'bold' }}>
+                      16Bits OmniOps
+                    </span>
+                    <div
+                      className="font-code text-neutral-600 hidden sm:block"
+                      style={{ fontSize: 10, marginTop: 2 }}
+                    >
+                      AGENTIC AI SWARM · MULTI-AGENT INCIDENT RESPONSE
+                    </div>
+                  </div>
                 </div>
 
-                {/* Human-in-the-Loop Authorization Gate */}
-                {finalResult.status === 'AWAITING_APPROVAL' && !approvedLocally ? (
-                  <div className="p-4 rounded-xl border-2 border-amber-500 bg-amber-950/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[4px_4px_0px_#f59e0b]">
-                    <div>
-                      <div className="flex items-center gap-2 font-bold text-amber-300 text-sm font-mono">
-                        <ShieldCheck className="h-4 w-4 text-amber-400" />
-                        <span>HUMAN AUTHORIZATION REQUIRED (SLA Guardrail Gate)</span>
-                      </div>
-                      <p className="text-xs text-amber-200/80 mt-1">
-                        Remediation involves infrastructure modifications. Compliance policy requires digital sign-off before dispatching commands.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      disabled={isApproving}
-                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-lg text-xs transition shadow-[2px_2px_0px_#000] shrink-0"
-                    >
-                      {isApproving ? 'Authorizing...' : 'Authorize Execution →'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 flex items-center gap-2 text-xs text-emerald-300 font-mono">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                    <span>Remediation Plan Authorized by Human Operator • Signed & Committed to SQLite Audit Trail</span>
-                  </div>
-                )}
-
-                <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800 text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap max-h-[400px] overflow-y-auto font-sans">
-                  {finalResult.finalResolution}
+                <div className="flex items-center gap-2">
+                  <span
+                    className="font-code"
+                    style={{
+                      fontSize: 10,
+                      padding: '4px 8px',
+                      border: '2px solid #212529',
+                      backgroundColor: backendOnline ? '#e6f9d8' : '#fdf0d5',
+                    }}
+                  >
+                    <Database size={10} className="inline mr-1" />
+                    API: {backendOnline ? 'ONLINE' : 'SKETCH MODE'}
+                  </span>
+                  <a
+                    href="#pipeline"
+                    className="nes-btn is-primary nes-btn-xs font-arcade"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    RUN
+                  </a>
                 </div>
               </div>
-            )}
+            </header>
+
+            {/* ============ HERO ============ */}
+            <section className="max-w-6xl w-full mx-auto px-4 pt-10 pb-8">
+              <p className="font-arcade text-neutral-500" style={{ fontSize: 9, marginBottom: 12 }}>
+                {'> THEME: AGENTIC AI & INTELLIGENT SYSTEMS'}
+                <span className="blink">_</span>
+              </p>
+              <h1
+                className="font-arcade leading-relaxed"
+                style={{ fontSize: 'clamp(16px, 3.5vw, 26px)', maxWidth: 900 }}
+              >
+                AUTONOMOUS OPS.
+                <br />
+                <span style={{ color: '#209cee' }}>ZERO MANUAL</span>{' '}
+                <span style={{ color: '#92cc41' }}>COORDINATION.</span>
+              </h1>
+              <p className="mt-4 text-neutral-700" style={{ fontSize: 14, maxWidth: 640 }}>
+                A business is drowning in repetitive decision-making, fragmented workflows, and manual
+                coordination across systems. OmniOps dispatches a{' '}
+                <strong>4-agent autonomous swarm</strong> that plans, investigates, verifies, and
+                resolves production incidents — with a human approval gate for high-stakes actions.
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <a href="#pipeline" className="nes-btn is-success font-arcade nes-btn-sm">
+                  ▶ START DEMO
+                </a>
+                <span className="font-code text-neutral-500" style={{ fontSize: 11 }}>
+                  v0.1 · rough sketch · frontend only
+                </span>
+              </div>
+            </section>
+
+            {/* ============ PIPELINE ============ */}
+            <section id="pipeline" className="max-w-6xl w-full mx-auto px-4 pb-8 scroll-mt-20">
+              <div className="nes-container with-title is-centered" style={{ backgroundColor: '#fff' }}>
+                <p className="title font-arcade" style={{ fontSize: 10 }}>
+                  Multi-Agent Consensus Pipeline
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {AGENTS.map((agent) => {
+                    const isRunning = isExecuting && activeStep === agent.stage
+                    const isDone = (!isExecuting && activeStep >= agent.stage && (finalResult || activeStep > agent.stage)) ||
+                      (!isExecuting && !!finalResult)
+                    const Icon = agent.icon
+                    return (
+                      <div
+                        key={agent.stage}
+                        className="flex flex-col items-center gap-2"
+                        style={{ opacity: !isRunning && !isDone && activeStep === 0 ? 0.45 : 1 }}
+                      >
+                        <div
+                          className="flex items-center justify-center"
+                          style={{
+                            width: 64,
+                            height: 64,
+                            backgroundColor: isRunning ? agent.color : '#212529',
+                            color: isRunning ? '#212529' : agent.color,
+                            border: '3px solid #212529',
+                            boxShadow: isRunning ? `4px 4px 0px ${agent.color}` : '4px 4px 0px rgba(0,0,0,0.3)',
+                            animation: isRunning ? 'nes-blink 0.5s step-end infinite' : undefined,
+                          }}
+                        >
+                          <Icon size={28} strokeWidth={2} />
+                        </div>
+                        <div className="font-arcade" style={{ fontSize: 9 }}>
+                          STAGE {agent.stage}
+                        </div>
+                        <div className="font-arcade" style={{ fontSize: 8, color: agent.color }}>
+                          {agent.name}
+                          {isRunning && ' ●'}
+                          {isDone && !isRunning && ' ✓'}
+                        </div>
+                        <p className="font-code text-neutral-600 text-center" style={{ fontSize: 10, lineHeight: 1.5 }}>
+                          {agent.desc}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* pipeline progress bar */}
+                <div className="mt-6 flex justify-center">
+                  <progress
+                    className={`nes-progress ${isExecuting ? 'is-pattern' : finalResult ? 'is-success' : ''}`}
+                    value={finalResult ? 100 : activeStep}
+                    max={4}
+                    style={{ width: '80%', height: 18 }}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* ============ WORKSPACE ============ */}
+            <section className="max-w-6xl w-full mx-auto px-4 pb-12 flex-1 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* LEFT: samples + trigger form */}
+                <div className="lg:col-span-5 space-y-6">
+                  {/* sample scenarios */}
+                  <div className="nes-container with-title" style={{ backgroundColor: '#fff' }}>
+                    <p className="title font-arcade" style={{ fontSize: 9 }}>
+                      1-Click Demo Scenarios
+                    </p>
+                    <div className="space-y-2">
+                      {SAMPLES.map((s) => (
+                        <button
+                          key={s.key}
+                          type="button"
+                          onClick={() => selectSample(s)}
+                          disabled={isExecuting}
+                          className="nes-btn w-full text-left"
+                          style={{
+                            fontSize: 10,
+                            padding: '8px 10px',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            borderColor: title === s.title ? '#92cc41' : undefined,
+                            borderWidth: title === s.title ? 3 : 1,
+                          }}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="font-bold">{s.label}</span>
+                            <span
+                              style={{
+                                fontSize: 8,
+                                padding: '2px 4px',
+                                border: '1px solid #212529',
+                                backgroundColor:
+                                  s.priority === 'CRITICAL' ? '#f44336' : '#f7d51d',
+                                color: s.priority === 'CRITICAL' ? '#fff' : '#212529',
+                              }}
+                            >
+                              {s.priority}
+                            </span>
+                          </span>
+                          <span className="block text-neutral-600 mt-1" style={{ fontSize: 9 }}>
+                            {s.title}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* trigger form */}
+                  <form
+                    onSubmit={handleRunSwarm}
+                    className="nes-container with-title"
+                    style={{ backgroundColor: '#fff' }}
+                  >
+                    <p className="title font-arcade" style={{ fontSize: 9 }}>
+                      <Terminal size={11} className="inline mr-1 -mt-1" />
+                      Trigger Swarm
+                    </p>
+
+                    <div className="nes-field mb-3">
+                      <label className="font-code font-bold" style={{ fontSize: 10 }}>
+                        INCIDENT_TITLE
+                      </label>
+                      <input
+                        type="text"
+                        className="nes-input"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        disabled={isExecuting}
+                        placeholder="e.g. Kafka consumer lag spike"
+                        style={{ fontSize: 11 }}
+                      />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="font-code font-bold" style={{ fontSize: 10 }}>
+                        DESCRIPTION / TELEMETRY
+                      </label>
+                      <textarea
+                        className="nes-textarea"
+                        rows={8}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        disabled={isExecuting}
+                        placeholder="Describe the failure or paste logs..."
+                        style={{ fontSize: 10 }}
+                      />
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="font-code font-bold block mb-1" style={{ fontSize: 10 }}>
+                        PRIORITY
+                      </label>
+                      {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((p) => (
+                        <label key={p} style={{ display: 'flex', alignItems: 'center', fontSize: 10 }}>
+                          <input
+                            type="radio"
+                            className="nes-radio"
+                            name="priority"
+                            checked={priority === p}
+                            onChange={() => setPriority(p)}
+                            disabled={isExecuting}
+                            style={{ marginRight: 6 }}
+                          />
+                          <span className="font-code">{p}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isExecuting || !title.trim()}
+                      className={`nes-btn ${isExecuting ? 'is-disabled' : 'is-primary'} w-full font-arcade`}
+                      style={{ fontSize: 9, padding: '10px 8px' }}
+                    >
+                      {isExecuting ? '⏳ ORCHESTRATING...' : '▶ DISPATCH 4-AGENT SWARM'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* RIGHT: logs + resolution */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* execution stream */}
+                  <div className="nes-container with-title" style={{ backgroundColor: '#212529' }}>
+                    <p className="title font-arcade" style={{ fontSize: 9, color: '#92cc41' }}>
+                      <Activity size={11} className="inline mr-1 -mt-1" />
+                      Agent Execution Stream
+                    </p>
+
+                    <div
+                      ref={logRef}
+                      className="overflow-y-auto font-code"
+                      style={{
+                        maxHeight: 340,
+                        backgroundColor: '#0f0f0f',
+                        padding: 12,
+                        border: '2px solid #212529',
+                        fontSize: 10,
+                        lineHeight: 1.6,
+                        color: '#c5e1a5',
+                      }}
+                    >
+                      {logs.length === 0 ? (
+                        <div style={{ color: '#666' }}>
+                          {'> awaiting trigger...'}
+                          <br />
+                          {'> click "DISPATCH 4-AGENT SWARM" to observe real-time agent coordination.'}
+                          <br />
+                          <span className="blink">{'> _'}</span>
+                        </div>
+                      ) : (
+                        logs.map((log, idx) => (
+                          <div key={idx} style={{ marginBottom: 12 }}>
+                            <div style={{ color: '#92cc41' }}>
+                              <ArrowRight size={9} className="inline mr-1" />
+                              [{new Date(log.timestamp).toLocaleTimeString()}] {log.agentName}
+                            </div>
+                            <div style={{ color: '#209cee' }}>&gt; action: {log.action}</div>
+                            <div style={{ color: '#ad8bc9', whiteSpace: 'pre-wrap' }}>
+                              &gt; thought: {log.thought}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* resolution */}
+                  {finalResult && (
+                    <div className="nes-container with-title" style={{ backgroundColor: '#fff' }}>
+                      <p className="title font-arcade" style={{ fontSize: 9 }}>
+                        <FileText size={11} className="inline mr-1 -mt-1" />
+                        Synthesized Resolution
+                      </p>
+
+                      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <span className="font-code text-neutral-600" style={{ fontSize: 10 }}>
+                          Resolved in {finalResult.executionDurationMs}ms · {finalResult.status}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={copyResult}
+                          className="nes-btn nes-btn-xs font-code"
+                          style={{ fontSize: 9 }}
+                        >
+                          {copied ? (
+                            <>
+                              <CheckCheck size={10} className="inline mr-1" style={{ color: '#92cc41' }} />
+                              COPIED
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={10} className="inline mr-1" />
+                              COPY FIX
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* human approval gate */}
+                      {finalResult.status === 'AWAITING_APPROVAL' && !approvedLocally ? (
+                        <div
+                          className="p-3 mb-3"
+                          style={{ border: '3px solid #f7d51d', backgroundColor: '#fdf6d8' }}
+                        >
+                          <div className="font-arcade" style={{ fontSize: 9, color: '#8a7500' }}>
+                            <ShieldCheck size={12} className="inline mr-1" />
+                            HUMAN AUTHORIZATION REQUIRED
+                          </div>
+                          <p className="font-code mt-1" style={{ fontSize: 10, color: '#5c5000' }}>
+                            Remediation involves infrastructure changes. Compliance policy requires
+                            operator sign-off before dispatching commands.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleApprove}
+                            disabled={isApproving}
+                            className="nes-btn is-warning nes-btn-xs font-arcade mt-2"
+                            style={{ fontSize: 8 }}
+                          >
+                            {isApproving ? 'AUTHORIZING...' : 'AUTHORIZE EXECUTION →'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          className="p-2 mb-3 font-code"
+                          style={{ border: '2px solid #92cc41', backgroundColor: '#e6f9d8', fontSize: 10 }}
+                        >
+                          <CircleDot size={10} className="inline mr-1" style={{ color: '#92cc41' }} />
+                          Remediation authorized by human operator · committed to audit trail
+                        </div>
+                      )}
+
+                      <div
+                        className="font-code overflow-y-auto"
+                        style={{
+                          backgroundColor: '#f8f8f8',
+                          border: '2px solid #212529',
+                          padding: 12,
+                          fontSize: 11,
+                          lineHeight: 1.6,
+                          maxHeight: 400,
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {finalResult.finalResolution}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* incident queue */}
+                  <div className="nes-container with-title" style={{ backgroundColor: '#fff' }}>
+                    <p className="title font-arcade" style={{ fontSize: 9 }}>
+                      Incident Queue ({pending.length + incidents.length})
+                    </p>
+                    {pending.length === 0 && incidents.length === 0 ? (
+                      <p className="font-code text-neutral-500" style={{ fontSize: 10 }}>
+                        No incidents yet. Trigger a swarm run to populate the queue.
+                      </p>
+                    ) : (
+                      <table className="nes-table is-bordered is-centered w-full">
+                        <thead>
+                          <tr>
+                            <th className="font-arcade" style={{ fontSize: 8 }}>TITLE</th>
+                            <th className="font-arcade" style={{ fontSize: 8 }}>STATUS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {incidents.map((inc) => (
+                            <tr key={inc.id}>
+                              <td className="font-code" style={{ fontSize: 10 }}>{inc.title}</td>
+                              <td className="font-code" style={{ fontSize: 10, color: inc.status === 'RESOLVED' ? '#92cc41' : '#f7d51d' }}>
+                                {inc.status}
+                              </td>
+                            </tr>
+                          ))}
+                          {pending.map((p) => (
+                            <tr key={p.id}>
+                              <td className="font-code" style={{ fontSize: 10 }}>{p.title}</td>
+                              <td className="font-code" style={{ fontSize: 10, color: p.status === 'RESOLVED' ? '#92cc41' : '#f7d51d' }}>
+                                {p.status}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ============ FOOTER ============ */}
+            <footer
+              style={{
+                borderTop: '4px solid #212529',
+                backgroundColor: '#212529',
+                color: '#e7e7e7',
+              }}
+            >
+              <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <div className="font-arcade" style={{ fontSize: 9, color: '#92cc41', marginBottom: 10 }}>
+                    STACK
+                  </div>
+                  <ul className="font-code" style={{ fontSize: 10, lineHeight: 2 }}>
+                    <li>▸ React 19 + Vite</li>
+                    <li>▸ React Router</li>
+                    <li>▸ NES.css (this sketch)</li>
+                    <li>▸ Express.js + JWT (planned)</li>
+                    <li>▸ SQLite (planned)</li>
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-arcade" style={{ fontSize: 9, color: '#209cee', marginBottom: 10 }}>
+                    AGENT ROLES
+                  </div>
+                  <ul className="font-code" style={{ fontSize: 10, lineHeight: 2 }}>
+                    <li>▸ Planner — decompose & plan</li>
+                    <li>▸ Investigator — gather context</li>
+                    <li>▸ Verifier — safety gate</li>
+                    <li>▸ Synthesizer — resolution</li>
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-arcade" style={{ fontSize: 9, color: '#f7d51d', marginBottom: 10 }}>
+                    HUMAN-IN-THE-LOOP
+                  </div>
+                  <ul className="font-code" style={{ fontSize: 10, lineHeight: 2 }}>
+                    <li>▸ Approval gate on infra changes</li>
+                    <li>▸ Signed audit trail</li>
+                    <li>▸ SLA priority tiers</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="text-center pb-4 font-code" style={{ fontSize: 9, color: '#888' }}>
+                16Bits · Theme: Agentic AI & Intelligent Systems · sketch build
+                <Clock size={9} className="inline ml-1" />
+              </div>
+            </footer>
           </div>
-        </div>
-      </main>
-    </div>
+        }
+      />
+    </Routes>
   )
 }
+
+export default App
