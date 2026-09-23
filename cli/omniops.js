@@ -110,6 +110,53 @@ function clearConfig() {
   }
 }
 
+function getHistoryPath() {
+  return path.join(getConfigDir(), 'history.json')
+}
+
+function readHistory() {
+  try {
+    const p = getHistoryPath()
+    if (!fs.existsSync(p)) return []
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) || []
+  } catch {
+    return []
+  }
+}
+
+function recordLocalIncident(item) {
+  try {
+    const dir = getConfigDir()
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const history = readHistory().filter((h) => h.incidentId !== item.incidentId)
+    history.unshift(item)
+    fs.writeFileSync(getHistoryPath(), JSON.stringify(history.slice(0, 50), null, 2), 'utf-8')
+  } catch {}
+}
+
+async function claimLocalIncidents(token) {
+  const history = readHistory()
+  if (!history.length) return 0
+  const incidentIds = history.map((h) => h.incidentId).filter(Boolean)
+  if (!incidentIds.length) return 0
+
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/claim`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ incidentIds })
+    })
+    if (!res.ok) return 0
+    const data = await res.json()
+    return data.claimedCount || 0
+  } catch {
+    return 0
+  }
+}
+
 function getStoredToken() {
   if (process.env.OMNIOPS_TOKEN) return process.env.OMNIOPS_TOKEN.trim()
   const cfg = readConfig()
@@ -355,7 +402,13 @@ async function loginCommand() {
       console.log(`  ${c.dim}Operator:${c.reset}  ${data.user.name} (${data.user.email})`)
       console.log(`  ${c.dim}Role:${c.reset}      ${data.user.role}`)
       console.log(`  ${c.dim}Workspace:${c.reset} ${c.bold}${data.user.orgName || 'Private Team'}${c.reset} (org_id: ${data.user.orgId || 'private'})`)
-      console.log(`  ${c.dim}Config:${c.reset}    Saved to ~/.omniops/config.json\n`)
+      console.log(`  ${c.dim}Config:${c.reset}    Saved to ~/.omniops/config.json`)
+
+      const claimed = await claimLocalIncidents(token)
+      if (claimed > 0) {
+        console.log(`  ${c.green}${c.bold}[OK] Claimed ${claimed} local incident(s) into your team workspace! Recorded in /audit.${c.reset}`)
+      }
+      console.log('')
     } catch (err) {
       console.log(`${c.red}[FAIL] Could not verify token with ${API_BASE}:${c.reset}`, err.message)
     }
@@ -400,9 +453,49 @@ async function loginCommand() {
     console.log(`  ${c.dim}Role:${c.reset}      ${data.user.role}`)
     console.log(`  ${c.dim}Workspace:${c.reset} ${c.bold}${data.user.orgName || 'Private Team'}${c.reset} (org_id: ${data.user.orgId || 'private'})`)
     console.log(`  ${c.dim}Config:${c.reset}    Saved to ~/.omniops/config.json`)
+
+    const claimed = await claimLocalIncidents(data.token)
+    if (claimed > 0) {
+      console.log(`  ${c.green}${c.bold}[OK] Claimed ${claimed} local machine incident(s) into your team workspace! Recorded in /audit.${c.reset}`)
+    }
     console.log(`\n${c.green}Your private team workspace is now active for all CLI operations.${c.reset}\n`)
   } catch (err) {
     console.log(`\n${c.red}[FAIL] Connection error:${c.reset}`, err.message)
+  }
+}
+
+async function historyCommand() {
+  printBanner()
+  const history = readHistory()
+  console.log(`${c.bold}Local Machine Incident History (${history.length} recorded):${c.reset}\n`)
+  if (!history.length) {
+    console.log(`  ${c.dim}No incidents triaged on this machine yet.${c.reset}\n`)
+    return
+  }
+  history.forEach((h, i) => {
+    const timeStr = new Date(h.timestamp).toLocaleString()
+    console.log(`  ${c.cyan}${i + 1}. [${h.priority}]${c.reset} ${c.bold}${h.title}${c.reset}`)
+    console.log(`     ${c.dim}ID:${c.reset} ${h.incidentId} ${c.dim}• Status: ${h.status} • ${timeStr}${c.reset}`)
+  })
+  console.log(`\n${c.dim}Run 'omniops claim' to allocate all machine incidents to your signed-in workspace.${c.reset}\n`)
+}
+
+async function claimCommand() {
+  printBanner()
+  const token = getStoredToken()
+  if (!token) {
+    console.log(`${c.yellow}[AUTH REQUIRED] Sign in first to claim incidents into your workspace:${c.reset}`)
+    console.log(`  ${c.bold}omniops login${c.reset}\n`)
+    return
+  }
+  const history = readHistory()
+  console.log(`${c.bold}Allocating ${history.length} local machine incident(s) to your team workspace...${c.reset}`)
+  const count = await claimLocalIncidents(token)
+  if (count > 0) {
+    console.log(`\n${c.green}${c.bold}[OK] Successfully allocated ${count} incident(s) to your private workspace!${c.reset}`)
+    console.log(`${c.dim}All items are now permanently recorded in your team's /audit trail.${c.reset}\n`)
+  } else {
+    console.log(`\n${c.yellow}[INFO] All local incidents are already claimed or recorded.${c.reset}\n`)
   }
 }
 
@@ -540,6 +633,15 @@ async function triageIncident(query, priority = 'HIGH') {
     }
 
     const { result } = await res.json()
+
+    // Record incident to local machine history for workspace adoption
+    recordLocalIncident({
+      incidentId: result.incidentId,
+      title: result.title || query.split('\n')[0].slice(0, 80),
+      priority,
+      status: result.status,
+      timestamp: new Date().toISOString()
+    })
 
     // 1. Display Clean 4-Agent Trajectory Card
     console.log(`\n${c.cyan}${c.bold}┌── [4-Agent Autonomous Swarm Trajectory] ──────────────────────────┐${c.reset}`)
@@ -766,6 +868,17 @@ async function main() {
       break
     }
 
+    case 'history':
+    case 'incidents':
+      await historyCommand()
+      break
+
+    case 'claim':
+    case 'adopt':
+    case 'sync':
+      await claimCommand()
+      break
+
     case 'approve': {
       const id = args[0]
       if (!id) {
@@ -792,6 +905,8 @@ async function main() {
       console.log(`${c.bold}Available Commands:${c.reset}`)
       console.log(`  ${c.green}omniops triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
       console.log(`  ${c.green}omniops approve <id>${c.reset}             Sign off on critical operator safety gate`)
+      console.log(`  ${c.green}omniops history${c.reset}                  List recent incidents triaged on this machine`)
+      console.log(`  ${c.green}omniops claim${c.reset}                    Allocate machine incidents to signed-in workspace`)
       console.log(`  ${c.green}omniops login${c.reset}                    Authenticate terminal to private team workspace`)
       console.log(`  ${c.green}omniops whoami${c.reset}                   Check current operator & active workspace`)
       console.log(`  ${c.green}omniops logout${c.reset}                   Disconnect session and revert to public sandbox`)
