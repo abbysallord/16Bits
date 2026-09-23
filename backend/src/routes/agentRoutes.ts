@@ -12,23 +12,58 @@ import { AuthenticatedRequest, requireAuth, verifyToken } from '../middleware/au
 export const agentRouter = Router()
 
 // List available SOP runbooks
-agentRouter.get('/runbooks', (req: Request, res: Response): void => {
-  const runbooks = runbookService.getAvailableRunbooks()
-  res.json({ count: runbooks.length, runbooks })
+agentRouter.get('/runbooks', async (req: Request, res: Response): Promise<void> => {
+  const runbooks = await runbookService.getAvailableRunbooks()
+  res.json({ count: runbooks.length, storage: 'database', runbooks })
+})
+
+// Search runbooks: /api/agents/runbooks/search?q=redis+oom (add &rerank=false to skip the LLM pick)
+agentRouter.get('/runbooks/search', async (req: Request, res: Response): Promise<void> => {
+  const q = String(req.query.q || '').slice(0, 2000)
+  if (!q.trim()) {
+    res.status(400).json({ error: 'q is required' })
+    return
+  }
+  const limit = Math.min(Math.max(Number(req.query.limit) || 5, 1), 10)
+  const result = await runbookService.search(q, limit, { rerank: req.query.rerank !== 'false' })
+  res.json({
+    query: result.query,
+    method: result.method,
+    chosen: result.chosen ? { filename: result.chosen.runbook.filename, title: result.chosen.runbook.title } : null,
+    rerankReason: result.rerankReason || null,
+    matches: result.matches.map(m => ({ filename: m.runbook.filename, title: m.runbook.title, score: m.score, signals: m.signals, snippet: m.snippet })),
+  })
 })
 
 // Upload a custom team runbook (Markdown SOP). Signed-in operators only.
-agentRouter.post('/runbooks', requireAuth, (req: AuthenticatedRequest, res: Response): void => {
+agentRouter.post('/runbooks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { filename, content } = req.body
   if (!filename || !content) {
     res.status(400).json({ error: 'filename and content are required' })
     return
   }
   try {
-    const saved = runbookService.saveRunbook(filename, content)
-    res.status(201).json({ message: 'Runbook uploaded and indexed successfully', runbook: saved })
+    if (typeof filename !== 'string' || typeof content !== 'string') {
+      res.status(400).json({ error: 'filename and content must be strings' })
+      return
+    }
+    const saved = await runbookService.saveRunbook(filename, content)
+    res.status(201).json({ message: 'Runbook saved to the database and indexed for search', runbook: saved })
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to save runbook' })
+  }
+})
+
+// Delete a team-uploaded runbook. Signed-in operators only; built-in runbooks cannot be deleted.
+agentRouter.delete('/runbooks/:filename', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const filename = String(req.params.filename)
+  const outcome = await runbookService.deleteRunbook(filename)
+  if (outcome === 'not_found') {
+    res.status(404).json({ error: 'Runbook not found' })
+  } else if (outcome === 'builtin') {
+    res.status(403).json({ error: 'Built-in runbooks ship with the repo and cannot be deleted' })
+  } else {
+    res.json({ message: 'Runbook deleted', filename })
   }
 })
 

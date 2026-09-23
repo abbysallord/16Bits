@@ -188,7 +188,9 @@ Be concise, technical, and objective. Maximum 140 words.
       systemLoad: os.loadavg().map(n => Number(n.toFixed(2)))
     }
 
-    const matchedRunbook = runbookService.findBestRunbook(effectiveTitle + ' ' + effectiveDesc)
+    const runbookSearch = await runbookService.search(effectiveTitle + ' ' + effectiveDesc, 3)
+    const matchedRunbook = runbookSearch.chosen?.runbook || null
+    const runbookLabel = matchedRunbook?.title || 'None matched (no runbook in the library fits this incident)'
     const slaPolicy = SlaPolicyMatrix.getPolicy(priority)
 
     // Codebase File & AST Knowledge Graph Inspection
@@ -237,9 +239,9 @@ You are the Investigator Agent with access to live host telemetry, enterprise SO
 You retrieved:
 - Host Telemetry: ${JSON.stringify(hostTelemetry)}
 - Enterprise SLA: ${JSON.stringify(slaPolicy)}
-- Matched SOP Runbook: "${matchedRunbook?.title}"
+- Matched SOP Runbook: "${runbookLabel}"
 - Runbook Procedures:
-${matchedRunbook?.content.slice(0, 500)}
+${matchedRunbook ? matchedRunbook.content.slice(0, 1200) : 'No runbook applies. Propose a cautious, read-only-first plan and flag that a new runbook should be written.'}
 ${inspectedFile ? `- Inspected Source File [${inspectedFile}]:\n${fileSnippet}\n` : ''}
 ${astContext ? `- Codebase Architecture (AST Graph): ${astContext}\n` : ''}
 
@@ -250,8 +252,8 @@ Synthesize the failure mechanism based on the telemetry, codebase context, and m
     const toolThought = await aiService.complete(toolPrompt, "You are a senior site reliability and systems investigator.")
     
     const actionDesc = inspectedFile
-      ? `Queried live OS telemetry, inspected codebase file [${inspectedFile}], and retrieved SOP Runbook: "${matchedRunbook?.title}".`
-      : `Queried live OS telemetry and retrieved SOP Runbook: "${matchedRunbook?.title}".`
+      ? `Queried live OS telemetry, inspected codebase file [${inspectedFile}], and retrieved SOP Runbook: "${runbookLabel}".`
+      : `Queried live OS telemetry and retrieved SOP Runbook: "${runbookLabel}".`
 
     await recordStep(
       'Investigator Agent',
@@ -261,7 +263,8 @@ Synthesize the failure mechanism based on the telemetry, codebase context, and m
       {
         hostTelemetry,
         slaPolicy,
-        runbookTitle: matchedRunbook?.title,
+        runbookTitle: matchedRunbook?.title || null,
+        runbookSearch: { method: runbookSearch.method, rerankReason: runbookSearch.rerankReason, candidates: runbookSearch.matches.map(m => ({ filename: m.runbook.filename, title: m.runbook.title, score: m.score, signals: m.signals })) },
         ...(inspectedFile ? { inspectedFile, filePreview: fileSnippet?.slice(0, 250) } : {}),
         ...(astContext ? { astKnowledgeGraph: astContext } : {})
       }
@@ -274,7 +277,7 @@ Synthesize the failure mechanism based on the telemetry, codebase context, and m
 You are the Safety & Compliance Verification Guardrail Gate.
 Evaluate the proposed investigation against enterprise safety:
 - Root Cause: ${toolThought}
-- Runbook Constraints: "${matchedRunbook?.title}"
+- Runbook Constraints: "${runbookLabel}"
 - Contractual SLA Deadline: ${slaPolicy.resolutionTarget}
 - Incident Severity: ${priority}
 
@@ -302,7 +305,7 @@ Synthesize the final resolution for: "${effectiveTitle}".
 Inputs:
 - Priority: ${priority}
 - Telemetry & Root Cause: ${toolThought}
-- Matching Runbook: ${matchedRunbook?.title}
+- Matching Runbook: ${runbookLabel}
 - Compliance Gate: ${verifierThought}
 
 Produce a structured markdown resolution containing:
@@ -373,7 +376,7 @@ Keep it crisp, professional, and ready for immediate deployment.
       priority,
       status: finalStatus,
       requiresApproval,
-      matchedRunbookTitle: matchedRunbook?.title || 'Standard Enterprise SOP',
+      matchedRunbookTitle: matchedRunbook?.title || 'None matched',
       logs,
       finalResolution,
       executionDurationMs,

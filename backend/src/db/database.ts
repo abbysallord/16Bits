@@ -56,6 +56,17 @@ const SQLITE_SCHEMA = `
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(incident_id) REFERENCES incidents(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS runbooks (
+    filename TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'upload',
+    embedding TEXT,
+    embedding_model TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
 `
 
 const POSTGRES_SCHEMA = `
@@ -99,6 +110,16 @@ const POSTGRES_SCHEMA = `
   ALTER TABLE incidents ADD COLUMN IF NOT EXISTS source TEXT;
   ALTER TABLE incidents ADD COLUMN IF NOT EXISTS external_ref TEXT;
   CREATE INDEX IF NOT EXISTS idx_incidents_external_ref ON incidents(external_ref);
+  CREATE TABLE IF NOT EXISTS runbooks (
+    filename TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'upload',
+    embedding TEXT,
+    embedding_model TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
 `
 
 // Rewrite `?` placeholders to $1..$n, skipping anything inside single-quoted SQL strings

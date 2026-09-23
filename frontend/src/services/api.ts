@@ -214,7 +214,14 @@ export async function approveIncident(incidentId: string, token: string): Promis
   return res.json()
 }
 
-export async function fetchRunbooks(): Promise<Array<{ filename: string; title: string; content: string }>> {
+export interface RunbookSummary {
+  filename: string
+  title: string
+  content: string
+  source?: string
+}
+
+export async function fetchRunbooks(): Promise<RunbookSummary[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/agents/runbooks`)
     if (!res.ok) return []
@@ -236,3 +243,25 @@ export async function uploadRunbook(filename: string, content: string, token: st
 }
 
 
+
+export interface RunbookSearchResponse {
+  query: string
+  method: string
+  chosen: { filename: string; title: string } | null
+  rerankReason: string | null
+  matches: Array<{ filename: string; title: string; score: number; snippet: string; signals: { bm25: number; semantic: number | null } }>
+}
+
+export async function searchRunbooks(q: string): Promise<RunbookSearchResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/agents/runbooks/search?q=${encodeURIComponent(q)}`)
+  if (!res.ok) await throwApiError(res, 'Runbook search failed')
+  return res.json()
+}
+
+export async function deleteRunbook(filename: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/agents/runbooks/${encodeURIComponent(filename)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) await throwApiError(res, 'Failed to delete runbook')
+}

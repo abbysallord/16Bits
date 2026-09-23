@@ -6,6 +6,7 @@ import cors from 'cors'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { db, initDatabase } from './db/database.js'
+import { runbookService } from './services/runbookService.js'
 import { authRouter } from './routes/authRoutes.js'
 import { incidentRouter } from './routes/incidentRoutes.js'
 import { agentRouter } from './routes/agentRoutes.js'
@@ -118,6 +119,7 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
 })
 
 initDatabase()
+  .then(() => runbookService.init())
   .then(seedDemoData)
   .then(() => {
     app.listen(PORT, () => {

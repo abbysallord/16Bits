@@ -9,12 +9,20 @@ import {
 import {
   fetchRunbooks,
   uploadRunbook,
+  searchRunbooks,
+  deleteRunbook,
   UnauthorizedError,
+  type RunbookSummary,
+  type RunbookSearchResponse,
 } from '../services/api'
 import { useAuth, AuthBadge } from '../auth'
 
 export default function DocsPage() {
-  const [runbooks, setRunbooks] = useState<Array<{ filename: string; title: string; content: string }>>([])
+  const [runbooks, setRunbooks] = useState<RunbookSummary[]>([])
+  const [searchQuery, setSearchQuery] = useState('cache node out of memory, evictions spiking')
+  const [searchResult, setSearchResult] = useState<RunbookSearchResponse | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [uploadFilename, setUploadFilename] = useState('sop-kubernetes-crashloop.md')
   const [uploadContent, setUploadContent] = useState(
@@ -54,6 +62,35 @@ requires_approval: true
   const loadRunbooks = async () => {
     const list = await fetchRunbooks()
     setRunbooks(list)
+  }
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+    setIsSearching(true)
+    setSearchError(null)
+    try {
+      setSearchResult(await searchRunbooks(searchQuery))
+    } catch (err: any) {
+      setSearchResult(null)
+      setSearchError(err.message)
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleDelete = async (filename: string) => {
+    if (!window.confirm(`Delete runbook ${filename}?`)) return
+    try {
+      const token = await ensureToken()
+      if (!token) return
+      await deleteRunbook(filename, token)
+      setUploadStatus(`[SUCCESS] Deleted ${filename}`)
+      loadRunbooks()
+    } catch (err: any) {
+      if (err instanceof UnauthorizedError) logout()
+      setUploadStatus(`[ERROR] ${err.message}`)
+    }
   }
 
   const handleCopy = (key: string, text: string) => {
@@ -574,21 +611,84 @@ receivers:
             </p>
             <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
               <p>
-                SRE teams can author Standard Operating Procedures (SOPs) as standard Markdown documents with
-                YAML frontmatter. OmniOps loads and indexes runbooks dynamically at runtime without requiring
-                server restarts or database migrations.
+                SRE teams write Standard Operating Procedures (SOPs) as Markdown. Uploads are stored in the
+                database, so they survive restarts and redeploys, and are searchable right away. For every
+                incident the Investigator agent searches the library by meaning, not just exact words: BM25
+                keyword ranking with an ops synonym map, plus Gemini embeddings when a Gemini key is set, then
+                the LLM picks the best of the top 3 or reports that none applies.
               </p>
+
+              {/* RUNBOOK SEARCH */}
+              <form onSubmit={handleSearch} className="p-4 bg-white border-2 border-neutral-900 space-y-3">
+                <div className="font-arcade text-xs text-neutral-900">TRY RUNBOOK SEARCH</div>
+                <div className="flex flex-col md:flex-row gap-2">
+                  <input
+                    type="text"
+                    className="nes-input text-xs font-mono flex-1"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Describe the symptoms, e.g. payment callbacks getting 429s"
+                  />
+                  <button type="submit" disabled={isSearching} className="nes-btn is-primary nes-btn-xs font-arcade" style={{ fontSize: 9 }}>
+                    {isSearching ? 'SEARCHING...' : 'SEARCH →'}
+                  </button>
+                </div>
+                {searchError && (
+                  <div className="p-3 text-xs font-mono" style={{ border: '2px solid #212529', backgroundColor: '#fdf0d5' }}>
+                    [ERROR] {searchError}
+                  </div>
+                )}
+                {searchResult && (
+                  <div className="space-y-2 text-xs md:text-sm">
+                    <div className="p-3 font-mono text-xs" style={{ border: '2px solid #212529', backgroundColor: searchResult.chosen ? '#e6f9d8' : '#fdf0d5' }}>
+                      {searchResult.chosen ? (
+                        <>
+                          PICKED: <span className="font-bold">{searchResult.chosen.title}</span>
+                        </>
+                      ) : (
+                        <>NO RUNBOOK FITS. The agents will propose a cautious plan and flag that a runbook is missing.</>
+                      )}
+                      {searchResult.rerankReason && <div className="mt-1 text-neutral-700">WHY: {searchResult.rerankReason}</div>}
+                    </div>
+                    {searchResult.matches.map((m, i) => (
+                      <div key={m.filename} className="p-3 bg-slate-50 border border-neutral-300">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-blue-800">
+                            #{i + 1} {m.title}
+                          </span>
+                          <span className="text-neutral-500 text-xs font-mono whitespace-nowrap">
+                            bm25 {m.signals.bm25}
+                            {m.signals.semantic !== null ? ` · semantic ${m.signals.semantic}` : ''}
+                          </span>
+                        </div>
+                        {m.snippet && <div className="mt-1 text-xs text-neutral-600 font-mono line-clamp-2">{m.snippet}</div>}
+                      </div>
+                    ))}
+                    {searchResult.matches.length === 0 && <div className="text-xs font-mono text-neutral-600">No keyword or semantic matches.</div>}
+                    <div className="text-xs text-neutral-500 font-mono">METHOD: {searchResult.method}</div>
+                  </div>
+                )}
+              </form>
 
               {/* CURRENT RUNBOOKS LIST */}
               <div className="p-4 bg-slate-50 border-2 border-neutral-900">
                 <div className="font-arcade text-xs text-neutral-900 mb-3">
-                  LOADED RUNBOOKS IN MEMORY ({runbooks.length})
+                  RUNBOOK LIBRARY IN DATABASE ({runbooks.length})
                 </div>
                 <div className="space-y-2">
-                  {runbooks.map((rb, idx) => (
-                    <div key={idx} className="p-3 bg-white border border-neutral-300 text-xs md:text-sm flex items-center justify-between">
+                  {runbooks.map((rb) => (
+                    <div key={rb.filename} className="p-3 bg-white border border-neutral-300 text-xs md:text-sm flex items-center justify-between gap-2">
                       <span className="font-bold text-blue-800">{rb.title}</span>
-                      <span className="text-neutral-500 text-xs font-mono">({rb.filename})</span>
+                      <span className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="text-neutral-500 text-xs font-mono">
+                          ({rb.filename}){rb.source === 'upload' ? ' · team upload' : rb.source === 'builtin' ? ' · built-in' : ''}
+                        </span>
+                        {rb.source === 'upload' && (
+                          <button type="button" onClick={() => handleDelete(rb.filename)} className="nes-btn is-error nes-btn-xs font-arcade" style={{ fontSize: 8 }}>
+                            DEL
+                          </button>
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -635,7 +735,7 @@ receivers:
                   className="nes-btn is-primary nes-btn-xs font-arcade"
                   style={{ fontSize: 9 }}
                 >
-                  {isUploading ? 'INDEXING RUNBOOK...' : 'UPLOAD & INDEX RUNBOOK →'}
+                  {isUploading ? 'SAVING & INDEXING...' : 'SAVE & INDEX RUNBOOK →'}
                 </button>
               </form>
             </div>

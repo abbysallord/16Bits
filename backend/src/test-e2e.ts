@@ -298,6 +298,59 @@ async function runTests() {
     recordTest('10b. Runbook Upload Rejects Missing Token', false, err.message)
   }
 
+  // TEST 10c: Runbook search ranks the right SOP for paraphrased symptoms (no exact title words)
+  try {
+    const cases: Array<[string, string]> = [
+      ['cache node OOM, evictions spiking, maxmemory hit', 'redis-memory-exhaustion.md'],
+      ['payment callbacks getting 429 throttled', 'stripe-webhook-throttle.md'],
+      ['db connections maxed out, pool saturated', 'postgres-pool-exhaustion.md'],
+    ]
+    const outcomes: string[] = []
+    let ok = true
+    for (const [q, expected] of cases) {
+      const { status, data } = await request(`/api/agents/runbooks/search?q=${encodeURIComponent(q)}&rerank=false`)
+      const top = data.matches?.[0]?.filename
+      if (status !== 200 || top !== expected) ok = false
+      outcomes.push(`"${q}" -> ${top}`)
+    }
+    const empty = await request('/api/agents/runbooks/search')
+    recordTest('10c. Runbook Search Ranking (/api/agents/runbooks/search)', ok && empty.status === 400, outcomes.join('; '))
+  } catch (err: any) {
+    recordTest('10c. Runbook Search Ranking', false, err.message)
+  }
+
+  // TEST 10d: Uploaded runbook is stored in the database and becomes searchable
+  if (authToken) {
+    try {
+      const filename = `e2e-kafka-lag-${Date.now()}.md`
+      const up = await request('/api/agents/runbooks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: { filename, content: '# SOP-STREAM-011: Kafka Consumer Lag\n\n## Trigger Condition\n- Consumer group lag above 50k messages on orders topic.\n\n## Approved Remediation Steps\n1. Scale consumer deployment replicas.\n2. Check for poison messages in the partition.' }
+      })
+      const list = await request('/api/agents/runbooks')
+      const found = await request(`/api/agents/runbooks/search?q=${encodeURIComponent('kafka consumers falling behind, lag growing')}&rerank=false`)
+      const del = await request(`/api/agents/runbooks/${filename}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } })
+      const builtin = await request('/api/agents/runbooks/redis-memory-exhaustion.md', { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } })
+      const after = await request('/api/agents/runbooks')
+      const passed =
+        up.status === 201 &&
+        list.data.storage === 'database' &&
+        list.data.runbooks.some((r: any) => r.filename === filename) &&
+        found.data.matches?.[0]?.filename === filename &&
+        del.status === 200 &&
+        builtin.status === 403 &&
+        !after.data.runbooks.some((r: any) => r.filename === filename)
+      recordTest(
+        '10d. Runbook Upload Persists, Is Searchable, Deletes',
+        passed,
+        `Upload: ${up.status}, Storage: ${list.data.storage}, Top hit: ${found.data.matches?.[0]?.filename}, Delete: ${del.status}, Delete built-in: ${builtin.status}, Method: ${found.data.method}`
+      )
+    } catch (err: any) {
+      recordTest('10d. Runbook Upload Persists + Searchable', false, err.message)
+    }
+  }
+
   // TEST 10: Human-in-the-Loop Operator Authorization with JWT Signature
   if (syncIncidentId && authToken) {
     try {
