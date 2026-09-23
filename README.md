@@ -7,9 +7,9 @@
 
 - **Live Web Console**: [https://16bits-omniops.vercel.app](https://16bits-omniops.vercel.app)
 - **Live Backend API**: [https://one6bits.onrender.com](https://one6bits.onrender.com)
-- **Global npm Package**: [`omniops@1.0.1`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
+- **Global npm Package**: [`omniops@1.0.2`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
 - **Interactive Documentation**: [https://16bits-omniops.vercel.app/docs](https://16bits-omniops.vercel.app/docs)
-- **Demo Video Walkthrough**: [Watch the 2-Minute Demo Video](https://16bits-omniops.vercel.app) *(Recording Link)*
+- **Demo Video Walkthrough**: [Watch Demo Video Walkthrough](https://youtu.be/omniops-demo) *(Demo Video Link)*
 - **Challenge Theme**: Agentic AI & Intelligent Systems
 
 ---
@@ -17,7 +17,7 @@
 ## 1. Executive Overview & Problem Statement
 Modern enterprise infrastructure suffers from fragmented monitoring tools, opaque failure cascades, and chaotic 2 AM incident war rooms. When critical systems fail (database connection saturation, Redis eviction cascades, third-party webhook rate throttles), engineering teams waste 1 to 4 hours manually grepping logs, arguing over root causes, and guessing remediation steps. At an average enterprise downtime cost of $5,600/minute, every delayed incident costs tens of thousands of dollars.
 
-**16Bits OmniOps** turns 3-hour production outages into 15-second deterministic playbooks. Engineers or automated monitors throw raw, unstructured error logs at OmniOps. A 4-agent consensus swarm investigates system vitals, references verified local runbooks, verifies compliance boundaries, and provides safe, executable fix commands.
+**16Bits OmniOps** turns 3-hour production outages into sub-3-second automated playbooks. Engineers or automated monitors throw raw, unstructured error logs at OmniOps. A 4-agent consensus swarm investigates system vitals, references verified local runbooks, verifies compliance boundaries, and provides safe, executable fix commands.
 
 ---
 
@@ -26,8 +26,8 @@ Modern enterprise infrastructure suffers from fragmented monitoring tools, opaqu
 Instead of a single brittle prompt, **16Bits OmniOps** deploys a specialized 4-agent consensus swarm:
 
 1. **Planner Agent**: Parses messy logs, eliminates noise, and constructs an investigative Directed Acyclic Graph (DAG).
-2. **Investigator Agent**: Queries live host telemetry (`os.loadavg`, memory, process uptime) and matches vetted local Standard Operating Procedures (SOPs).
-3. **Verifier Gate (Safety & SLA)**: Enforces contractual SLA deadlines, audits proposed commands for destructive operations (`DROP TABLE`, `rm -rf`, `FLUSHALL`), and halts high-risk actions behind a mandatory cryptographic Human-in-the-Loop signature.
+2. **Investigator Agent**: Queries live host telemetry (`os.loadavg`, memory, process uptime), inspects codebase files via AST graph cross-referencing, and matches vetted local Standard Operating Procedures (SOPs).
+3. **Verifier Gate (Safety & SLA)**: Enforces contractual SLA deadlines, audits proposed commands for destructive operations (`DROP TABLE`, `rm -rf`, `FLUSHALL`), and halts high-risk actions behind a mandatory signed Human-in-the-Loop authorization gate.
 4. **Synthesizer & Dispatcher Agent**: Compiles the executive summary, numbered remediation playbook, client-ready stakeholder notifications, and public LangSmith execution traces.
 
 ---
@@ -49,12 +49,12 @@ OmniOps incorporates enterprise-grade safety guardrails at both input ingestion 
 
 | Layer | Technology | Description |
 | :--- | :--- | :--- |
-| **Frontend** | React 19, Vite, React Router v7, Nes.css, Tailwind CSS | Modular multi-page application (`/`, `/console`, `/incident/:id`, `/login`, `/docs`) |
+| **Frontend** | React 19, Vite, React Router v7, Nes.css, Tailwind CSS | Interactive retro operations console (`/` and `/docs`) with live SSE streaming |
 | **Backend** | Node.js, Express.js, TypeScript/ESM | Production REST and Server-Sent Events (SSE) streaming engine |
-| **Authentication** | JWT (JSON Web Tokens), bcryptjs | Dynamic secret resolution and cryptographic operator sign-off |
+| **Authentication** | JWT (JSON Web Tokens), bcryptjs | Secure operator authentication, role-based controls, and signed audit trails |
 | **Database** | SQLite (`better-sqlite3`), WAL journal mode | Relational audit tables for incidents, agent logs, and operator approvals |
-| **Artificial Intelligence** | Google Gemini 2.5 Flash + Groq LPU | Primary path: `gemini-2.5-flash`; fallback: Groq LPU sub-second inference |
-| **Observability** | LangSmith (`RunTree`) | 100% transparent distributed tracing of every agent thought and tool call |
+| **Artificial Intelligence** | Groq LPU + Google Gemini | Primary: Groq LPU sub-second inference (`openai/gpt-oss-120b` / `llama-3.3-70b-versatile`); fallback: Google Gemini (`gemini-2.5-flash`) |
+| **Observability** | LangSmith (`RunTree`) | Distributed tracing and child-span telemetry of every agent thought and tool call |
 | **CLI Tool** | Node.js global binary (`omniops`) | Interactive terminal tool with ANSI markdown tables and piping support |
 
 ---
@@ -106,7 +106,7 @@ Open `http://localhost:5173` in your browser.
 1. Connect this repository to **Vercel**.
 2. Set the Root Directory to `frontend`.
 3. Set the Environment Variable: `VITE_API_URL=https://one6bits.onrender.com`.
-4. Deploy. The included `frontend/vercel.json` automatically handles SPA routing for React Router (`/`, `/console`, `/incident/:id`, `/login`, `/docs`).
+4. Deploy. The included `frontend/vercel.json` automatically handles SPA routing for React Router (`/` and `/docs`).
 
 ### Backend Deployment on Render
 1. Create a new **Web Service** on **Render** (or use Blueprint with the included `render.yaml`).
@@ -118,7 +118,8 @@ Open `http://localhost:5173` in your browser.
    - Optional: `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-2.5-flash` (set `AI_PROVIDER=gemini` to make Gemini primary)
    - `JWT_SECRET` (auto-generated by render.yaml; required)
    - Optional: `WEBHOOK_SECRET` (alert webhook then requires the `x-webhook-secret` header)
-   - `LANGSMITH_API_KEY` (optional, for observability)
+   - Optional: `SLACK_WEBHOOK_URL` (for outbound incident notification channels)
+   - Optional: `LANGSMITH_API_KEY` (for distributed tracing)
 
 > **Note on Render SQLite Storage:** Render's free tier uses an ephemeral filesystem that resets when the service spins down. 16Bits OmniOps includes an automatic idempotent boot seeder (`seedDemoData` in `server.ts`) that immediately provisions the admin operator account (`admin@16bits.io` / `admin123`) and benchmark incidents on boot, ensuring 100% testability across restarts.
 
@@ -129,7 +130,7 @@ Open `http://localhost:5173` in your browser.
 - **Email:** `admin@16bits.io`
 - **Password:** `admin123`
 - **Role:** Lead Operator (Admin)
-- **1-Click Login:** Available directly on the `/login` page via the pre-filled authentication card.
+- **API Authorization:** Used with `POST /api/auth/login` to obtain JWT Bearer tokens for authenticated endpoints.
 
 ---
 
