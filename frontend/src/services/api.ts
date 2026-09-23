@@ -91,6 +91,20 @@ export async function loginUser(email: string, password: string): Promise<{ toke
   return res.json()
 }
 
+export async function registerUser(name: string, email: string, password: string): Promise<{ token: string; user: User }> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const details = Array.isArray(err.issues) ? err.issues.map((i: { message: string }) => i.message).join('. ') : ''
+    throw new Error(details || err.error || 'Could not create account')
+  }
+  return res.json()
+}
+
 export async function fetchIncidents(): Promise<Incident[]> {
   const res = await fetch(`${API_BASE_URL}/api/incidents`)
   if (!res.ok) throw new Error('Failed to fetch incidents')

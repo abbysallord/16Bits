@@ -207,6 +207,27 @@ async function runTests() {
     recordTest('9. External Webhook Alert Ingestion', false, err.message)
   }
 
+  // TEST 4b: Self-registration creates an operator (client-supplied role is ignored)
+  try {
+    const email = `e2e-${Date.now()}@16bits.io`
+    const { status, data } = await request('/api/auth/register', {
+      method: 'POST',
+      body: { name: 'E2E Operator', email, password: 'secret123', role: 'admin' }
+    })
+    const dup = await request('/api/auth/register', {
+      method: 'POST',
+      body: { name: 'E2E Operator', email, password: 'secret123' }
+    })
+    const passed = status === 201 && Boolean(data.token) && data.user?.role === 'operator' && dup.status === 409
+    recordTest(
+      '4b. Operator Self-Registration (/api/auth/register)',
+      passed,
+      `Status: ${status}, Role: ${data.user?.role}, Duplicate email status: ${dup.status}`
+    )
+  } catch (err: any) {
+    recordTest('4b. Operator Self-Registration', false, err.message)
+  }
+
   // TEST 10a: Approval gate rejects unauthenticated callers (no token -> 401, incident unchanged)
   if (syncIncidentId) {
     try {

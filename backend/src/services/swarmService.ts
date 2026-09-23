@@ -331,7 +331,7 @@ Keep it crisp, professional, and ready for immediate deployment.
       'Synthesizer Agent',
       4,
       `Final resolution synthesized. Security status: ${finalStatus}.`,
-      requiresApproval ? 'Action staged. Waiting for Human Operator authorization.' : 'Remediation dispatched and incident marked resolved.'
+      requiresApproval ? 'Action staged. Waiting for Human Operator authorization.' : 'Low-risk plan auto-approved by policy; incident marked resolved. No commands were executed.'
     )
 
     // Save final resolution in DB
