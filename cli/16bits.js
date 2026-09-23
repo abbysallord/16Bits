@@ -3,7 +3,11 @@
 /**
  * 16Bits OmniOps CLI Tool
  * Fast, terminal-native autonomous operations client & agent-to-agent interface.
+ * Supports direct arguments, piping stdin, and live system diagnosis.
  */
+
+import os from 'os'
+import net from 'net'
 
 const API_BASE = process.env.OMNIOPS_API_URL || 'http://localhost:8000'
 
@@ -17,7 +21,8 @@ const c = {
   red: '\x1b[31m',
   magenta: '\x1b[35m',
   bgGreen: '\x1b[42m\x1b[30m',
-  bgYellow: '\x1b[43m\x1b[30m'
+  bgYellow: '\x1b[43m\x1b[30m',
+  bgCyan: '\x1b[46m\x1b[30m'
 }
 
 function printBanner() {
@@ -27,6 +32,36 @@ ${c.cyan}${c.bold}╔═══════════════════�
 ╚══════════════════════════════════════════════════════╝${c.reset}
 ${c.dim}  Connected to Engine: ${API_BASE}${c.reset}
 `)
+}
+
+async function readStdin() {
+  if (process.stdin.isTTY) return ''
+  return new Promise((resolve) => {
+    let data = ''
+    process.stdin.setEncoding('utf-8')
+    process.stdin.on('data', chunk => { data += chunk })
+    process.stdin.on('end', () => resolve(data.trim()))
+    setTimeout(() => resolve(data.trim()), 2000)
+  })
+}
+
+function checkPort(port, host = '127.0.0.1') {
+  return new Promise((resolve) => {
+    const socket = new net.Socket()
+    socket.setTimeout(400)
+    socket.on('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.on('timeout', () => {
+      socket.destroy()
+      resolve(false)
+    })
+    socket.on('error', () => {
+      resolve(false)
+    })
+    socket.connect(port, host)
+  })
 }
 
 async function checkHealth() {
@@ -50,11 +85,45 @@ async function checkHealth() {
   }
 }
 
+async function runDoctor() {
+  printBanner()
+  console.log(`${c.bold}Running Host Infrastructure Diagnostics...${c.reset}\n`)
+
+  const totalMemGb = (os.totalmem() / (1024 ** 3)).toFixed(2)
+  const freeMemGb = (os.freemem() / (1024 ** 3)).toFixed(2)
+  const memUsedPercent = Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100)
+  const loads = os.loadavg().map(n => Number(n.toFixed(2)))
+  const cpus = os.cpus().length
+
+  console.log(`${c.bold}${c.cyan}Host Vitals:${c.reset}`)
+  console.log(`  ${c.dim}OS / Arch:${c.reset}    ${os.platform()} (${os.arch()})`)
+  console.log(`  ${c.dim}CPU Cores:${c.reset}    ${cpus} cores | 1m/5m/15m Load: [${loads.join(', ')}]`)
+  console.log(`  ${c.dim}RAM Usage:${c.reset}    ${memUsedPercent}% used (${freeMemGb} GB free of ${totalMemGb} GB)`)
+
+  console.log(`\n${c.bold}${c.cyan}Core Service Probing:${c.reset}`)
+  const p8000 = await checkPort(8000)
+  const p5173 = await checkPort(5173)
+  const p5432 = await checkPort(5432)
+  const p6379 = await checkPort(6379)
+
+  console.log(`  ${p8000 ? c.green + '✔' : c.red + '✖'} Port 8000 (OmniOps Engine): ${p8000 ? 'ONLINE' : 'OFFLINE'}${c.reset}`)
+  console.log(`  ${p5173 ? c.green + '✔' : c.yellow + '○'} Port 5173 (React Dashboard): ${p5173 ? 'ONLINE' : 'NOT RUNNING'}${c.reset}`)
+  console.log(`  ${p5432 ? c.green + '✔' : c.dim + '○'} Port 5432 (PostgreSQL):     ${p5432 ? 'LISTENING' : 'NOT DETECTED'}${c.reset}`)
+  console.log(`  ${p6379 ? c.green + '✔' : c.dim + '○'} Port 6379 (Redis Cache):    ${p6379 ? 'LISTENING' : 'NOT DETECTED'}${c.reset}`)
+
+  if (memUsedPercent > 90 || loads[0] > cpus * 2) {
+    console.log(`\n${c.bgYellow} ⚠️ HOST UNDER HIGH PRESSURE — Auto-triggering Swarm Triage... ${c.reset}`)
+    await triageIncident(`Host resource exhaustion: Memory at ${memUsedPercent}%, Load average ${loads[0]} on ${cpus} cores`, 'HIGH')
+  } else {
+    console.log(`\n${c.green}✔ Host vitals within normal operating thresholds.${c.reset}\n`)
+  }
+}
+
 async function triageIncident(query, priority = 'HIGH') {
   printBanner()
   console.log(`${c.bold}Initiating 4-Agent Swarm Triage...${c.reset}`)
-  console.log(`${c.dim}Incident:${c.reset} "${query}"`)
-  console.log(`${c.dim}Priority:${c.reset} ${priority}\n`)
+  console.log(`${c.dim}Incident Payload:${c.reset}\n"${query.slice(0, 160)}${query.length > 160 ? '...' : ''}"`)
+  console.log(`${c.dim}Priority Target:${c.reset}  ${priority}\n`)
 
   const startTime = Date.now()
 
@@ -63,7 +132,7 @@ async function triageIncident(query, priority = 'HIGH') {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: query.slice(0, 80),
+        title: query.split('\n')[0].slice(0, 80) || 'Piped Incident Error',
         description: query,
         priority: priority.toUpperCase(),
         category: 'CLI Triggered'
@@ -107,6 +176,7 @@ async function triageIncident(query, priority = 'HIGH') {
     }
   } catch (err) {
     console.error(`\n${c.red}✖ Swarm execution failed:${c.reset}`, err.message)
+    console.log(`${c.yellow}Check if OmniOps Engine is running at ${API_BASE}.${c.reset}`)
   }
 }
 
@@ -136,44 +206,65 @@ async function approveIncident(incidentId) {
   }
 }
 
-// Simple CLI Dispatcher
-const [,, command, ...args] = process.argv
+async function main() {
+  const stdinData = await readStdin()
+  const [,, command, ...args] = process.argv
 
-switch (command) {
-  case 'status':
-  case 'health':
-    checkHealth()
-    break
-  case 'triage':
-  case 'alert': {
-    const text = args.join(' ')
-    if (!text) {
-      console.log(`${c.yellow}Usage:${c.reset} 16bits triage "<incident description or error>" [PRIORITY]`)
-      console.log(`Example: 16bits triage "Postgres pool exhausted on replica-02" CRITICAL`)
-      process.exit(1)
-    }
-    const priority = args[args.length - 1].match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i) ? args.pop() : 'HIGH'
-    triageIncident(args.join(' ') || text, priority)
-    break
+  // Case 1: Input was piped via stdin (e.g. `cat error.log | 16bits` or `npm test | 16bits`)
+  if (stdinData) {
+    const priority = (command && command.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i)) 
+      ? command 
+      : (args[0] || 'HIGH')
+    await triageIncident(stdinData, priority)
+    return
   }
-  case 'approve': {
-    const id = args[0]
-    if (!id) {
-      console.log(`${c.yellow}Usage:${c.reset} 16bits approve <incidentId>`)
-      process.exit(1)
+
+  // Case 2: Interactive CLI subcommands
+  switch (command) {
+    case 'status':
+    case 'health':
+      await checkHealth()
+      break
+    case 'doctor':
+      await runDoctor()
+      break
+    case 'triage':
+    case 'alert': {
+      const text = args.join(' ')
+      if (!text) {
+        console.log(`${c.yellow}Usage:${c.reset} 16bits triage "<incident description or error>" [PRIORITY]`)
+        console.log(`       cat error.log | 16bits`)
+        console.log(`Example: 16bits triage "Postgres pool exhausted on replica-02" CRITICAL`)
+        process.exit(1)
+      }
+      const priority = args[args.length - 1].match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i) ? args.pop() : 'HIGH'
+      await triageIncident(args.join(' ') || text, priority)
+      break
     }
-    approveIncident(id)
-    break
+    case 'approve': {
+      const id = args[0]
+      if (!id) {
+        console.log(`${c.yellow}Usage:${c.reset} 16bits approve <incidentId>`)
+        process.exit(1)
+      }
+      await approveIncident(id)
+      break
+    }
+    default:
+      printBanner()
+      console.log(`${c.bold}Available Commands:${c.reset}`)
+      console.log(`  ${c.green}16bits doctor${c.reset}                   Probe host health, memory, and listening ports`)
+      console.log(`  ${c.green}16bits status${c.reset}                   Check cluster health and active runbooks`)
+      console.log(`  ${c.green}16bits triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
+      console.log(`  ${c.green}16bits approve <id>${c.reset}             Sign off on critical operator safety gate`)
+      console.log(`\n${c.bold}Pipe Stdin Support:${c.reset}`)
+      console.log(`  ${c.cyan}cat /var/log/syslog | tail -n 20 | 16bits${c.reset}`)
+      console.log(`  ${c.cyan}docker logs container 2>&1 | 16bits${c.reset}`)
+      console.log(`\n${c.dim}Examples:${c.reset}`)
+      console.log(`  16bits triage "Stripe 429 webhook throttle spike" CRITICAL`)
+      console.log(`  16bits doctor\n`)
+      break
   }
-  default:
-    printBanner()
-    console.log(`${c.bold}Available Commands:${c.reset}`)
-    console.log(`  ${c.green}16bits status${c.reset}                   Check cluster health and active runbooks`)
-    console.log(`  ${c.green}16bits triage "<error>"${c.reset}         Dispatch autonomous 4-agent swarm`)
-    console.log(`  ${c.green}16bits approve <id>${c.reset}             Sign off on critical operator safety gate`)
-    console.log(`\n${c.dim}Examples:${c.reset}`)
-    console.log(`  node cli/16bits.js status`)
-    console.log(`  node cli/16bits.js triage "Stripe 429 webhook throttle spike" CRITICAL`)
-    console.log(`  node cli/16bits.js approve 835fd248-8608-4678-957a-c927877ee3db\n`)
-    break
 }
+
+main()

@@ -1,0 +1,32 @@
+{
+  "name": "16bits-ops",
+  "version": "1.0.0",
+  "description": "Autonomous site reliability and incident response swarm for production systems",
+  "type": "module",
+  "bin": {
+    "16bits": "./16bits.js"
+  },
+  "keywords": [
+    "sre",
+    "incident-response",
+    "agentic-ai",
+    "swarm",
+    "langsmith",
+    "devops",
+    "observability",
+    "production-safe"
+  ],
+  "author": "16Bits Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abbysallord/16Bits.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abbysallord/16Bits/issues"
+  },
+  "homepage": "https://github.com/abbysallord/16Bits#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
