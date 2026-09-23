@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Python Virtual Environments & Cache
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist-info/
+
+# Build Outputs
+dist/
+build/
+.slidev/
+*.pdf
+
+# Environment Variables & Credentials
+.env
+.env.*
+!.env.example
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
