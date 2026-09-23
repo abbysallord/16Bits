@@ -1,7 +1,16 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
-const getSecret = () => process.env.JWT_SECRET || '16bits-hackathon-super-secret-key-2026'
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET is not set. Add it to backend/.env (local) or your host env vars (Render/Railway).')
+  }
+  return secret
+}
+
+// Fail fast at boot instead of on the first login
+getJwtSecret()
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -13,7 +22,15 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export function generateToken(payload: { id: string; email: string; name: string; role: string }): string {
-  return jwt.sign(payload, getSecret(), { expiresIn: '7d' })
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
+}
+
+export function verifyToken(token: string): { id: string; email: string; name: string; role: string } | null {
+  try {
+    return jwt.verify(token, getJwtSecret()) as { id: string; email: string; name: string; role: string }
+  } catch {
+    return null
+  }
 }
 
 export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
@@ -25,7 +42,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 
   const token = authHeader.split(' ')[1]
   try {
-    const decoded = jwt.verify(token, getSecret()) as {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
       id: string
       email: string
       name: string

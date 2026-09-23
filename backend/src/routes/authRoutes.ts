@@ -10,7 +10,9 @@ export const authRouter = Router()
 
 // Register endpoint
 authRouter.post('/register', validate(registerSchema), async (req: Request, res: Response): Promise<void> => {
-  const { email, password, name, role } = req.body
+  const { email, password, name } = req.body
+  // Self-registration always creates an operator; never trust a client-supplied role
+  const role = 'operator'
 
   // Check if user already exists
   const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
@@ -26,14 +28,14 @@ authRouter.post('/register', validate(registerSchema), async (req: Request, res:
   db.prepare(`
     INSERT INTO users (id, email, password_hash, name, role)
     VALUES (?, ?, ?, ?, ?)
-  `).run(userId, email, passwordHash, name, role || 'operator')
+  `).run(userId, email, passwordHash, name, role)
 
-  const token = generateToken({ id: userId, email, name, role: role || 'operator' })
+  const token = generateToken({ id: userId, email, name, role: role })
 
   res.status(201).json({
     message: 'User registered successfully',
     token,
-    user: { id: userId, email, name, role: role || 'operator' }
+    user: { id: userId, email, name, role: role }
   })
 })
 

@@ -300,6 +300,22 @@ Keep it crisp, professional, and ready for immediate deployment.
       }
     }
 
+    // Optional Slack / Collaboration Webhook Dispatch
+    const slackUrl = process.env.SLACK_WEBHOOK_URL
+    if (slackUrl) {
+      try {
+        await fetch(slackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `[16Bits OmniOps Alert]: ${effectiveTitle} [${priority}]\nStatus: ${finalStatus}\nIncident: ${incidentId}\nResolution: ${finalResolution.slice(0, 200)}...`
+          })
+        })
+      } catch (err: any) {
+        console.warn(`[Slack Webhook] notice: ${err.message}`)
+      }
+    }
+
     const executionDurationMs = Date.now() - startTime
 
     return {

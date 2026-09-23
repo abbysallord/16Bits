@@ -11,7 +11,7 @@ drawings:
 mdc: true
 ---
 
-# 16Bits OmniOps ⚡
+# 16Bits OmniOps
 
 ### Autonomous Multi-Agent Enterprise Orchestrator
 
@@ -22,7 +22,7 @@ mdc: true
 </div>
 
 <div class="abs-bottom-10 left-0 right-0 text-center text-sm text-gray-500 font-mono">
-  Team 16Bits • Live Production Demo
+  Team 16Bits • Live Production Demo • npm: omniops@1.0.0
 </div>
 
 <!--
@@ -35,7 +35,7 @@ Hook the judges within the first 15 seconds:
 layout: two-cols
 ---
 
-# The Problem in Plain Words 🚨
+# The Problem in Plain Words
 
 ### The 45-Minute Human Bottleneck
 
@@ -68,7 +68,7 @@ Explain that modern business doesn't need another generic chatbot. It needs auto
 layout: default
 ---
 
-# The Solution: The 4-Agent Consensus Swarm 🤖
+# The Solution: The 4-Agent Consensus Swarm
 
 Instead of one lazy prompt, **16Bits OmniOps** coordinates specialized autonomous agents:
 
@@ -99,7 +99,7 @@ Instead of one lazy prompt, **16Bits OmniOps** coordinates specialized autonomou
 layout: default
 ---
 
-# Architecture & Tech Stack 🛠️
+# Architecture & Tech Stack
 
 ```mermaid
 graph LR
@@ -117,17 +117,17 @@ graph LR
 ```
 
 <div class="mt-4 p-3 bg-neutral-900 border border-neutral-800 rounded-lg text-xs font-mono text-gray-400 flex justify-around">
-  <span>⚡ Frontend: React + Vite</span>
-  <span>⚡ Backend: Express.js (Node.js)</span>
-  <span>⚡ Observability: LangSmith Tracing</span>
-  <span>⚡ Agents: CLI + SKILL.md</span>
+  <span>Frontend: React 19 + Vite + NES.css</span>
+  <span>Backend: Express.js (Node.js LTS)</span>
+  <span>Observability: LangSmith Tracing</span>
+  <span>Distribution: npm i -g omniops</span>
 </div>
 
 ---
 layout: two-cols
 ---
 
-# Business Viability & Market Impact 📈
+# Business Viability & Market Impact
 
 <v-clicks>
 
@@ -155,13 +155,16 @@ layout: center
 class: text-center
 ---
 
-# Live Demonstration 🎬
+# Live Demonstration
 
 Let's see **16Bits OmniOps** resolve a critical enterprise incident live!
 
-<div class="mt-8">
-  <a href="http://localhost:5173" target="_blank" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition shadow-lg shadow-emerald-500/20">
-    Launch 16Bits OmniOps Dashboard →
+<div class="mt-8 flex justify-center gap-4">
+  <a href="https://one6bits.onrender.com" target="_blank" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition shadow-lg shadow-emerald-500/20">
+    Render Backend Health ->
+  </a>
+  <a href="https://www.npmjs.com/package/omniops" target="_blank" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-lg shadow-blue-500/20">
+    npm Package: omniops ->
   </a>
 </div>
 

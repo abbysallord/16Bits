@@ -63,6 +63,19 @@ export class RunbookService {
     // Default to first runbook if score is 0
     return highestScore > 0 ? bestMatch : runbooks[0]
   }
+
+  public saveRunbook(filename: string, content: string): Runbook {
+    if (!fs.existsSync(this.runbooksDir)) {
+      fs.mkdirSync(this.runbooksDir, { recursive: true })
+    }
+    const safeName = filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+    const cleanFilename = safeName.endsWith('.md') ? safeName : `${safeName}.md`
+    const filePath = path.join(this.runbooksDir, cleanFilename)
+    fs.writeFileSync(filePath, content, 'utf-8')
+    const firstLine = content.split('\n')[0] || cleanFilename
+    const title = firstLine.replace(/^#\s*/, '').trim()
+    return { filename: cleanFilename, title, content }
+  }
 }
 
 export const runbookService = new RunbookService()

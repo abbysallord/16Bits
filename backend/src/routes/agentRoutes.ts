@@ -5,6 +5,7 @@ import { swarmService } from '../services/swarmService.js'
 import { runbookService } from '../services/runbookService.js'
 import { runAgentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
+import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js'
 
 export const agentRouter = Router()
 
@@ -14,8 +15,29 @@ agentRouter.get('/runbooks', (req: Request, res: Response): void => {
   res.json({ count: runbooks.length, runbooks })
 })
 
+// Upload a custom team runbook (Markdown SOP)
+agentRouter.post('/runbooks', (req: Request, res: Response): void => {
+  const { filename, content } = req.body
+  if (!filename || !content) {
+    res.status(400).json({ error: 'filename and content are required' })
+    return
+  }
+  try {
+    const saved = runbookService.saveRunbook(filename, content)
+    res.status(201).json({ message: 'Runbook uploaded and indexed successfully', runbook: saved })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to save runbook' })
+  }
+})
+
 // Real Ingestion Webhook for External Alerts / curl testing
+// If WEBHOOK_SECRET is set, callers must send it in the x-webhook-secret header
 agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<void> => {
+  const webhookSecret = process.env.WEBHOOK_SECRET
+  if (webhookSecret && req.header('x-webhook-secret') !== webhookSecret) {
+    res.status(401).json({ error: 'Invalid or missing x-webhook-secret header' })
+    return
+  }
   try {
     const title = req.body.title || req.body.service || 'Production Alert Triggered'
     const description = req.body.description || req.body.error || req.body.message || JSON.stringify(req.body)
@@ -53,27 +75,34 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
 })
 
 // Human-in-the-Loop Operator Authorization
-agentRouter.post('/approve', async (req: Request, res: Response): Promise<void> => {
+agentRouter.post('/approve', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { incidentId } = req.body
-  let approvedBy = req.body.approvedBy || 'Lead Operator (Dhanush)'
-
-  // Verify JWT token if provided
-  const authHeader = req.headers.authorization
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const jwt = (await import('jsonwebtoken')).default
-      const token = authHeader.split(' ')[1]
-      const secret = process.env.JWT_SECRET || '16bits-hackathon-super-secret-key-2026'
-      const decoded: any = jwt.verify(token, secret)
-      approvedBy = `${decoded.name} (${decoded.email})`
-    } catch {
-      // fallback to provided name or default
-    }
-  }
-
-  if (!incidentId) {
+  if (!incidentId || typeof incidentId !== 'string') {
     res.status(400).json({ error: 'incidentId is required' })
     return
+  }
+
+  const existing = db.prepare('SELECT status FROM incidents WHERE id = ?').get(incidentId) as { status: string } | undefined
+  if (!existing) {
+    res.status(404).json({ error: 'Incident not found' })
+    return
+  }
+  if (existing.status !== 'AWAITING_APPROVAL') {
+    res.status(409).json({ error: `Incident is ${existing.status}, not awaiting approval` })
+    return
+  }
+
+  // Prefer the verified JWT identity. The current single-page UI has no login, so fall back to
+  // the body value but label it unverified so the audit trail stays honest.
+  let approvedBy = `${String(req.body.approvedBy || 'Operator').slice(0, 80)} [unverified]`
+  const authHeader = req.headers.authorization
+  if (authHeader?.startsWith('Bearer ')) {
+    const user = verifyToken(authHeader.split(' ')[1])
+    if (!user) {
+      res.status(401).json({ error: 'Invalid or expired token' })
+      return
+    }
+    approvedBy = `${user.name} (${user.email})`
   }
 
   try {
