@@ -7,7 +7,7 @@
 
 - **Live Web Console**: [https://16bits-omniops.vercel.app](https://16bits-omniops.vercel.app)
 - **Live Backend API**: [https://one6bits.onrender.com](https://one6bits.onrender.com)
-- **Global npm Package**: [`omniops@1.0.3`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
+- **Global npm Package**: [`omniops@1.0.4`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
 - **Interactive Documentation**: [https://16bits-omniops.vercel.app/docs](https://16bits-omniops.vercel.app/docs)
 - **Demo Video Walkthrough**: TODO - add the real video link before submission
 - **Challenge Theme**: Agentic AI & Intelligent Systems
@@ -27,7 +27,7 @@ Instead of a single brittle prompt, **16Bits OmniOps** deploys a specialized 4-a
 
 1. **Planner Agent**: Parses messy logs, eliminates noise, and constructs an investigative Directed Acyclic Graph (DAG).
 2. **Investigator Agent**: Reads live host telemetry (`os.loadavg`, memory, process uptime), inspects codebase files via the AST call graph, and searches the runbook (SOP) library: BM25 keyword ranking with an ops synonym map, Gemini embeddings when `GEMINI_API_KEY` is set, and an LLM pick of the best of the top 3 (or "none applies").
-3. **Verifier Gate (Safety & SLA)**: Reviews the plan against SLA and safety constraints. The approval gate itself is deterministic code, not the LLM: any HIGH/CRITICAL incident, or any plan containing a destructive command pattern (`DROP TABLE`, `rm -rf`, `FLUSHALL`), is held as `AWAITING_APPROVAL` until a signed-in operator approves it. The Verifier LLM's verdict is advisory.
+3. **Verifier Gate (Safety & SLA)**: Reviews the plan against SLA and safety constraints. The approval gate itself is deterministic code, not the LLM: any HIGH/CRITICAL incident, or any plan containing a destructive command pattern (`DROP TABLE`, `rm -rf`, `FLUSHALL`), is held as `AWAITING_APPROVAL` until a signed-in operator approves it. On top of that, the Verifier returns a structured JSON verdict (`verdict`, `risk`, `requiresApproval`, `slaAtRisk`, `destructiveActions`, `reasons`, `summary`) that is validated with zod. The verdict can only add a hold, never remove one, and if a model's reply is not valid JSON matching the schema, the gate fails closed and holds the incident for a human.
 4. **Synthesizer & Dispatcher Agent**: Writes the executive summary, numbered remediation playbook and stakeholder update, posts to the team's own Slack channel (connected in Settings), and links the LangSmith trace when `LANGSMITH_API_KEY` is set.
 
 ---
@@ -42,6 +42,10 @@ OmniOps applies guardrails on the way in and on the way out:
 - **Output Guardrails**:
   - **Destructive Command Interception**: Scans synthesized remediation commands for dangerous patterns (`rm -rf /`, `DROP DATABASE`, `mkfs`, `dd if=`, `FLUSHALL --force`). Flags destructive commands and forces the plan into the human approval queue.
   - **Zero-Emoji Enforcement**: Strips accidental unicode emoji characters from all machine outputs to preserve clean, professional terminal and enterprise compliance.
+- **AI Security**:
+  - **Backend-only LLM calls**: every Groq/Gemini call is made by the backend (`backend/src/services/aiService.ts`). The browser and the CLI never see a provider key.
+  - **Secrets protection**: provider keys, `JWT_SECRET` and `WEBHOOK_SECRET` live only in server env vars. Team Groq keys and Slack webhooks are write-only in the API (masked on read). Secrets in incoming logs are redacted before any LLM call.
+  - **JSON mode for decisions**: the calls that drive decisions (the Verifier verdict and the runbook pick) use Groq Structured Outputs: strict `json_schema` (constrained decoding) on models that support it (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`), JSON Object Mode on the rest, and `responseMimeType: application/json` on Gemini. Every reply is re-validated with zod before use. Invalid output never loosens the gate: the Verifier fails closed and the runbook pick falls back to the search ranking. Schemas: `backend/src/schemas/aiSchemas.ts`.
 
 ---
 
@@ -75,7 +79,7 @@ omniops triage "PostgreSQL FATAL: remaining connection slots are reserved" HIGH
 # 4. Check system health and loaded runbooks
 omniops doctor
 
-# 5. Approve a held incident (v1.0.3+). Signs in as the demo operator unless you set
+# 5. Approve a held incident (v1.0.3+; team features need v1.0.4). Signs in as the demo operator unless you set
 #    OMNIOPS_TOKEN, or OMNIOPS_EMAIL / OMNIOPS_PASSWORD
 omniops approve <incidentId>
 ```

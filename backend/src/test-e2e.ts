@@ -3,6 +3,7 @@
  */
 
 import { guardrailService } from './services/guardrailService.js'
+import { verifierVerdictZod } from './schemas/aiSchemas.js'
 
 const BASE_URL = 'http://localhost:8000'
 
@@ -509,6 +510,28 @@ async function runTests() {
       )
     } catch (err: any) {
       recordTest('12. Incident Detail & Trajectory', false, err.message)
+    }
+  }
+
+  // TEST 14: Verification Agent returns a schema-valid JSON verdict, and the gate honors it
+  if (syncIncidentId) {
+    try {
+      const { data } = await request(`/api/incidents/${syncIncidentId}`)
+      const step = (data.logs || []).find((l: any) => l.agent_name === 'Verification Agent')
+      const verdict = step?.data_payload?.verdict
+      const check = verifierVerdictZod.safeParse(verdict)
+      const gated = check.success && (verdict.requiresApproval || verdict.verdict === 'OPERATOR_AUTHORIZATION_REQUIRED' || verdict.risk === 'HIGH' || verdict.risk === 'CRITICAL')
+      // A gated verdict must never auto-resolve: either still held, or closed by a human approval step
+      const humanApproved = (data.logs || []).some((l: any) => l.agent_name === 'Human Operator')
+      const consistent = !gated || data.incident?.status === 'AWAITING_APPROVAL' || humanApproved
+      const passed = check.success && typeof step?.data_payload?.verdictSource === 'string' && consistent
+      recordTest(
+        '14. Structured Verifier Verdict (JSON mode + zod schema)',
+        passed,
+        `verdict=${verdict?.verdict}, risk=${verdict?.risk}, source=${step?.data_payload?.verdictSource}, incident=${data.incident?.status}`
+      )
+    } catch (err: any) {
+      recordTest('14. Structured Verifier Verdict', false, err.message)
     }
   }
 

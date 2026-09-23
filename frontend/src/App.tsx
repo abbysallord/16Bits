@@ -328,7 +328,7 @@ function ConsoleView() {
               className="nes-btn is-warning nes-btn-xs font-arcade"
               style={{ textDecoration: 'none', fontSize: 9 }}
             >
-              NPM: omniops@1.0.3
+              NPM: omniops@1.0.4
             </a>
             <AuthBadge />
           </div>
@@ -813,7 +813,7 @@ function ConsoleView() {
                     <li>- Express.js + JWT (Active)</li>
                     <li>- {health?.database?.startsWith('Postgres') ? 'Postgres (Active)' : 'SQLite WAL Mode (Active)'}</li>
                     <li>- LangSmith Tracing (Active)</li>
-                    <li>- npm: omniops@1.0.3</li>
+                    <li>- npm: omniops@1.0.4</li>
                   </ul>
                 </div>
                 <div>

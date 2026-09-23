@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import Groq from 'groq-sdk'
+import type { ZodType } from 'zod'
 import { currentOrg } from './orgService.js'
 
 type Provider = 'groq' | 'gemini'
@@ -20,6 +21,26 @@ const GROQ_FALLBACK_MODELS = ['openai/gpt-oss-20b', 'llama-3.3-70b-versatile', '
 // groq-sdk retries 429/5xx itself, honoring Groq's retry-after header, with exponential backoff
 const GROQ_MAX_RETRIES = Number(process.env.GROQ_MAX_RETRIES ?? 2)
 const MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_TOKENS || 2048)
+
+// Groq Structured Outputs (https://console.groq.com/docs/structured-outputs):
+// strict json_schema (constrained decoding) on these models, JSON Object Mode on the rest
+const GROQ_STRICT_SCHEMA_MODELS = new Set(['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b'])
+
+export interface JsonSpec<T> {
+  name: string
+  // JSON Schema sent to the model. For strict mode every property is required and additionalProperties is false.
+  schema: Record<string, unknown>
+  // Runtime check of whatever came back, even from strict mode
+  zod: ZodType<T>
+}
+
+export type JsonMode = 'json_schema_strict' | 'json_object' | 'gemini_json'
+
+export interface JsonResult<T> {
+  data: T
+  mode: JsonMode
+  model: string
+}
 
 // Some open reasoning models emit <think>...</think> blocks; never show those to users
 function stripReasoning(text: string): string {
@@ -121,6 +142,82 @@ class AIService {
       generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS }
     })
     return stripReasoning(result.response.text() || '')
+  }
+
+  // Parse + validate. Never throws; returns null on anything that is not valid JSON matching the schema.
+  private validateJson<T>(raw: string, spec: JsonSpec<T>): T | null {
+    try {
+      const parsed = spec.zod.safeParse(JSON.parse(stripReasoning(raw)))
+      if (parsed.success) return parsed.data
+      console.warn(`[AIService] ${spec.name}: JSON failed schema check: ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ').slice(0, 300)}`)
+    } catch (err: any) {
+      console.warn(`[AIService] ${spec.name}: response was not valid JSON: ${err?.message}`)
+    }
+    return null
+  }
+
+  private async callGroqJson<T>(prompt: string, systemInstruction: string, spec: JsonSpec<T>): Promise<JsonResult<T> | null> {
+    const messages = [
+      { role: 'system' as const, content: systemInstruction },
+      { role: 'user' as const, content: prompt }
+    ]
+    const models = [...new Set([this.groqModel, ...GROQ_FALLBACK_MODELS])]
+    for (const model of models) {
+      // Strict schema first where the model supports it, then plain JSON Object Mode
+      const modes: JsonMode[] = GROQ_STRICT_SCHEMA_MODELS.has(model) ? ['json_schema_strict', 'json_object'] : ['json_object']
+      for (const mode of modes) {
+        try {
+          const response_format: any = mode === 'json_schema_strict'
+            ? { type: 'json_schema', json_schema: { name: spec.name, schema: spec.schema, strict: true } }
+            : { type: 'json_object' }
+          const res = await this.groqClientForRequest()!.chat.completions.create({
+            model,
+            messages,
+            temperature: 0,
+            max_tokens: MAX_OUTPUT_TOKENS,
+            response_format
+          })
+          const data = this.validateJson(res.choices[0]?.message?.content || '', spec)
+          if (data !== null) return { data, mode, model }
+        } catch (err: any) {
+          console.warn(`[AIService] Groq ${mode} (${model}) failed: ${err?.message}`)
+        }
+      }
+    }
+    return null
+  }
+
+  private async callGeminiJson<T>(prompt: string, systemInstruction: string, spec: JsonSpec<T>): Promise<JsonResult<T> | null> {
+    try {
+      const model = this.geminiClient!.getGenerativeModel({ model: this.geminiModel, systemInstruction })
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: MAX_OUTPUT_TOKENS, responseMimeType: 'application/json' }
+      })
+      const data = this.validateJson(result.response.text() || '', spec)
+      if (data !== null) return { data, mode: 'gemini_json', model: this.geminiModel }
+    } catch (err: any) {
+      console.warn(`[AIService] Gemini JSON call failed: ${err?.message}`)
+    }
+    return null
+  }
+
+  /**
+   * Structured call: the provider is forced into JSON mode (Groq strict json_schema or json_object,
+   * Gemini responseMimeType=application/json) and the result is validated with zod.
+   * Returns null in mock mode or when no provider produced valid JSON; callers must fall back safely.
+   */
+  public async completeJSON<T>(prompt: string, systemInstruction: string, spec: JsonSpec<T>): Promise<JsonResult<T> | null> {
+    if (this.isMockMode()) return null
+    for (const provider of this.order) {
+      if (!this.isAvailable(provider)) continue
+      const r = provider === 'groq'
+        ? await this.callGroqJson(prompt, systemInstruction, spec)
+        : await this.callGeminiJson(prompt, systemInstruction, spec)
+      if (r) return r
+    }
+    console.warn(`[AIService] ${spec.name}: no provider returned valid JSON, caller falls back`)
+    return null
   }
 
   public async complete(prompt: string, systemInstruction?: string): Promise<string> {

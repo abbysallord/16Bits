@@ -226,7 +226,7 @@ npx omniops listen --port 8000
               className="nes-btn is-warning font-arcade nes-btn-xs"
               style={{ textDecoration: 'none', fontSize: 9 }}
             >
-              NPM: omniops@1.0.3
+              NPM: omniops@1.0.4
             </a>
             <AuthBadge />
           </div>
@@ -476,7 +476,7 @@ npx omniops listen --port 8000
                   rel="noreferrer"
                   className="font-bold underline text-blue-700"
                 >
-                  omniops@1.0.3
+                  omniops@1.0.4
                 </a>
                 . It requires zero local setup to evaluate an alert, or can connect directly to your backend
                 service via the <code className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-300 font-mono text-xs">OMNIOPS_API_URL</code> environment variable.
@@ -987,7 +987,7 @@ receivers:
                   rel="noreferrer"
                   className="text-neutral-300 hover:text-white transition-colors"
                 >
-                  &gt; npm: omniops@1.0.3
+                  &gt; npm: omniops@1.0.4
                 </a>
               </li>
             </ul>

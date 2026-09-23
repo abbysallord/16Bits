@@ -9,6 +9,7 @@ import { currentOrg } from './orgService.js'
 import { aiService } from './aiService.js'
 import { runbookService } from './runbookService.js'
 import { guardrailService } from './guardrailService.js'
+import { verifierVerdictSpec, type VerifierVerdict } from '../schemas/aiSchemas.js'
 
 export interface AgentStepLog {
   agentName: string
@@ -287,14 +288,53 @@ Evaluate:
 2. Does it risk breaching the ${slaPolicy.resolutionTarget} SLA window?
 3. Are safety guardrails satisfied?
 
-Return an explicit verdict: [CONDITIONAL APPROVAL: OPERATOR AUTHORIZATION REQUIRED] or [VERIFIED & SAFE TO EXECUTE]. Maximum 100 words.
+Answer in JSON with: verdict (VERIFIED_SAFE only if the plan is read-only or clearly low-risk, otherwise OPERATOR_AUTHORIZATION_REQUIRED), risk, requiresApproval, slaAtRisk, destructiveActions (empty list if none), reasons (1-5 short items) and summary (under 100 words).
 `
-    const verifierThought = await aiService.complete(verifierPrompt, "You are a strict enterprise compliance and risk verification officer.")
+    // JSON mode (Groq strict json_schema / json_object, Gemini application/json) + zod validation.
+    // Fail closed: if a real model gives no valid verdict, the incident is held for a human.
+    const structured = await aiService.completeJSON(verifierPrompt, "You are a strict enterprise compliance and risk verification officer. Reply with JSON only.", verifierVerdictSpec)
+    let verdict: VerifierVerdict
+    let verdictSource: string
+    if (structured) {
+      verdict = structured.data
+      verdictSource = `${structured.mode} (${structured.model})`
+    } else if (aiService.isMockMode()) {
+      const gated = priority === 'CRITICAL' || priority === 'HIGH'
+      verdict = {
+        verdict: gated ? 'OPERATOR_AUTHORIZATION_REQUIRED' : 'VERIFIED_SAFE',
+        risk: priority === 'CRITICAL' ? 'CRITICAL' : priority === 'HIGH' ? 'HIGH' : priority === 'MEDIUM' ? 'MEDIUM' : 'LOW',
+        requiresApproval: gated,
+        slaAtRisk: false,
+        destructiveActions: [],
+        reasons: ['[MOCK MODE - no AI key configured] Verdict taken from the severity policy only.'],
+        summary: 'Mock mode: no model was consulted. Set GROQ_API_KEY for a real verification verdict.'
+      }
+      verdictSource = 'policy (mock mode)'
+    } else {
+      verdict = {
+        verdict: 'OPERATOR_AUTHORIZATION_REQUIRED',
+        risk: 'HIGH',
+        requiresApproval: true,
+        slaAtRisk: false,
+        destructiveActions: [],
+        reasons: ['The verification model did not return a valid structured verdict, so the gate fails closed.'],
+        summary: 'Verifier output could not be validated. Holding for a human operator.'
+      }
+      verdictSource = 'fail-closed fallback'
+    }
+    const verifierThought = [
+      verdict.verdict === 'VERIFIED_SAFE' ? '[VERIFIED & SAFE TO EXECUTE]' : '[CONDITIONAL APPROVAL: OPERATOR AUTHORIZATION REQUIRED]',
+      `Risk: ${verdict.risk}. SLA at risk: ${verdict.slaAtRisk ? 'yes' : 'no'}.`,
+      verdict.summary,
+      ...verdict.reasons.map(r => `- ${r}`),
+      ...(verdict.destructiveActions.length ? [`Risky actions: ${verdict.destructiveActions.join('; ')}`] : [])
+    ].join('\n')
     await recordStep(
       'Verification Agent',
       3,
       verifierThought,
-      'Audited action against enterprise SLA constraints, security boundaries, and authorization gates.'
+      'Audited action against enterprise SLA constraints, security boundaries, and authorization gates.',
+      { verdict, verdictSource }
     )
 
     // ==========================================
@@ -323,7 +363,9 @@ Keep it crisp, professional, and ready for immediate deployment.
     const outputAudit = guardrailService.auditOutput(rawResolution)
     let finalResolution = outputAudit.cleanedText
 
-    let requiresApproval = priority === 'CRITICAL' || priority === 'HIGH' || outputAudit.isDestructive
+    // The model's verdict can only add a gate, never remove the severity or destructive-command gates
+    const verifierGate = verdict.requiresApproval || verdict.verdict === 'OPERATOR_AUTHORIZATION_REQUIRED' || verdict.risk === 'HIGH' || verdict.risk === 'CRITICAL' || verdict.destructiveActions.length > 0
+    let requiresApproval = priority === 'CRITICAL' || priority === 'HIGH' || outputAudit.isDestructive || verifierGate
     if (outputAudit.isDestructive) {
       finalResolution += `\n\n> [SAFETY GATE OVERRIDE]: Detected high-risk operations: ${outputAudit.flaggedCommands.join(', ')}. Action quarantined behind mandatory Human Operator signature.`
     }

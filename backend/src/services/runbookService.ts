@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { db } from '../db/database.js'
 import { aiService } from './aiService.js'
+import { runbookPickSpec } from '../schemas/aiSchemas.js'
 
 // Runbooks live in the database (Postgres on Render, SQLite locally), so uploads survive redeploys.
 // The Markdown files in backend/runbooks/ are the built-in set, synced into the table at startup.
@@ -412,13 +413,13 @@ export class RunbookService {
     const list = candidates
       .map((c, i) => `[${i + 1}] ${c.runbook.title}\n${c.runbook.content.slice(0, 700)}`)
       .join('\n\n---\n\n')
-    const prompt = `Incident:\n${query.slice(0, 1500)}\n\nCandidate runbooks:\n\n${list}\n\nWhich runbook is the right procedure for this incident? Reply with JSON only: {"choice": <number of the runbook, or 0 if none of them apply>, "reason": "<one short sentence>"}`
-    const raw = await aiService.complete(prompt, 'You match production incidents to SRE runbooks. Answer with strict JSON only.')
-    const m = raw.match(/\{[\s\S]*\}/)
-    if (!m) return null
-    const parsed = JSON.parse(m[0])
-    const n = Number(parsed.choice)
-    if (!Number.isInteger(n) || n < 0 || n > candidates.length) return null
+    const prompt = `Incident:\n${query.slice(0, 1500)}\n\nCandidate runbooks:\n\n${list}\n\nWhich runbook is the right procedure for this incident? Reply with JSON: {"choice": <number of the runbook, or 0 if none of them apply>, "reason": "<one short sentence>"}`
+    // JSON mode + zod: a malformed or out-of-range answer is ignored and the lexical/semantic top match stands
+    const res = await aiService.completeJSON(prompt, 'You match production incidents to SRE runbooks. Answer with JSON only.', runbookPickSpec)
+    if (!res) return null
+    const n = res.data.choice
+    if (n > candidates.length) return null
+    const parsed = res.data
     return { index: n === 0 ? null : n - 1, reason: String(parsed.reason || '').slice(0, 300) }
   }
 

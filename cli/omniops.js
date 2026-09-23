@@ -55,7 +55,7 @@ function printBanner() {
   const engineLabel = isCloud ? 'Production Cloud' : 'Localhost Dev'
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════════════╗
-║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.3) ║
+║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.4) ║
 ║  ${c.dim}// 4-AGENT SWARM · AST CODE KNOWLEDGE · LANGSMITH TRACED //${c.cyan} ║
 ╚══════════════════════════════════════════════════════════════╝${c.reset}
   ${c.dim}Engine Link:${c.reset} [${isCloud ? c.green + engineLabel : c.yellow + engineLabel}${c.reset}] -> ${c.cyan}${API_BASE}${c.reset}
