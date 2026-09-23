@@ -1,7 +1,14 @@
 # 16Bits OmniOps
 > **Autonomous Multi-Agent Enterprise SRE Swarm & Incident Orchestrator**
 
-An autonomous, multi-agent operational intelligence platform built for the **Agentic AI & Intelligent Systems** challenge.
+[![npm version](https://img.shields.io/npm/v/omniops.svg)](https://www.npmjs.com/package/omniops)
+[![Backend Status](https://img.shields.io/badge/Backend-Live%20on%20Render-success)](https://one6bits.onrender.com/api/health)
+[![Theme](https://img.shields.io/badge/Hackathon%20Theme-Agentic%20AI%20%26%20Intelligent%20Systems-blue)]()
+
+- **Live Backend API**: [https://one6bits.onrender.com](https://one6bits.onrender.com)
+- **Global npm Package**: [`omniops@1.0.0`](https://www.npmjs.com/package/omniops) (`npm i -g omniops` or `npx omniops`)
+- **Documentation**: `/docs` in the application
+- **Challenge Theme**: Agentic AI & Intelligent Systems
 
 ---
 

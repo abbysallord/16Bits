@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Link } from 'react-router-dom'
+import DocsPage from './pages/DocsPage'
 import {
   Zap,
   Activity,
@@ -106,7 +107,7 @@ const AGENTS = [
   },
 ] as const
 
-function App() {
+function ConsoleView() {
   // backend health + incidents (real API when available)
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -242,101 +243,120 @@ function App() {
   const backendOnline = health?.status === 'ok'
 
   return (
-    <Routes>
-      <Route
-        path="*"
-        element={
-          <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f8f8' }}>
-            {/* ============ HEADER ============ */}
-            <header
-              className="sticky top-0 z-50"
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f8f8' }}>
+      {/* ============ HEADER ============ */}
+      <header
+        className="sticky top-0 z-50"
+        style={{
+          backgroundColor: '#f8f8f8',
+          borderBottom: '4px solid #212529',
+        }}
+      >
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="flex items-center justify-center"
               style={{
-                backgroundColor: '#f8f8f8',
-                borderBottom: '4px solid #212529',
+                width: 40,
+                height: 40,
+                backgroundColor: '#212529',
+                color: '#92cc41',
+                boxShadow: '4px 4px 0px rgba(0,0,0,0.4)',
+                textDecoration: 'none',
               }}
             >
-              <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex items-center justify-center"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      backgroundColor: '#212529',
-                      color: '#92cc41',
-                      boxShadow: '4px 4px 0px rgba(0,0,0,0.4)',
-                    }}
-                  >
-                    <Zap size={22} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <span className="font-arcade" style={{ fontSize: 13, fontWeight: 'bold' }}>
-                      16Bits OmniOps
-                    </span>
-                    <div
-                      className="font-code text-neutral-600 hidden sm:block"
-                      style={{ fontSize: 10, marginTop: 2 }}
-                    >
-                      AGENTIC AI SWARM · MULTI-AGENT INCIDENT RESPONSE
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-code"
-                    style={{
-                      fontSize: 10,
-                      padding: '4px 8px',
-                      border: '2px solid #212529',
-                      backgroundColor: backendOnline ? '#e6f9d8' : '#fdf0d5',
-                    }}
-                  >
-                    <Database size={10} className="inline mr-1" />
-                    API: {backendOnline ? 'ONLINE' : 'SKETCH MODE'}
-                  </span>
-                  <a
-                    href="#pipeline"
-                    className="nes-btn is-primary nes-btn-xs font-arcade"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    RUN
-                  </a>
-                </div>
-              </div>
-            </header>
-
-            {/* ============ HERO ============ */}
-            <section className="max-w-6xl w-full mx-auto px-4 pt-10 pb-8">
-              <p className="font-arcade text-neutral-500" style={{ fontSize: 9, marginBottom: 12 }}>
-                {'> THEME: AGENTIC AI & INTELLIGENT SYSTEMS'}
-                <span className="blink">_</span>
-              </p>
-              <h1
-                className="font-arcade leading-relaxed"
-                style={{ fontSize: 'clamp(16px, 3.5vw, 26px)', maxWidth: 900 }}
-              >
-                AUTONOMOUS OPS.
-                <br />
-                <span style={{ color: '#209cee' }}>ZERO MANUAL</span>{' '}
-                <span style={{ color: '#92cc41' }}>COORDINATION.</span>
-              </h1>
-              <p className="mt-4 text-neutral-700" style={{ fontSize: 14, maxWidth: 640 }}>
-                A business is drowning in repetitive decision-making, fragmented workflows, and manual
-                coordination across systems. OmniOps dispatches a{' '}
-                <strong>4-agent autonomous swarm</strong> that plans, investigates, verifies, and
-                resolves production incidents — with a human approval gate for high-stakes actions.
-              </p>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <a href="#pipeline" className="nes-btn is-success font-arcade nes-btn-sm">
-                  ▶ START DEMO
-                </a>
-                <span className="font-code text-neutral-500" style={{ fontSize: 11 }}>
-                  v0.1 · rough sketch · frontend only
+              <Zap size={22} strokeWidth={2.5} />
+            </Link>
+            <div>
+              <Link to="/" style={{ textDecoration: 'none', color: '#212529' }}>
+                <span className="font-arcade" style={{ fontSize: 13, fontWeight: 'bold' }}>
+                  16Bits OmniOps
                 </span>
+              </Link>
+              <div
+                className="font-code text-neutral-600 hidden sm:block"
+                style={{ fontSize: 10, marginTop: 2 }}
+              >
+                AGENTIC AI SWARM · MULTI-AGENT INCIDENT RESPONSE
               </div>
-            </section>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              to="/"
+              className="nes-btn is-primary nes-btn-xs font-arcade"
+              style={{ textDecoration: 'none', fontSize: 9 }}
+            >
+              CONSOLE
+            </Link>
+            <Link
+              to="/docs"
+              className="nes-btn nes-btn-xs font-arcade"
+              style={{ textDecoration: 'none', fontSize: 9 }}
+            >
+              DOCS
+            </Link>
+            <a
+              href="https://www.npmjs.com/package/omniops"
+              target="_blank"
+              rel="noreferrer"
+              className="nes-btn is-warning nes-btn-xs font-arcade hidden sm:inline-block"
+              style={{ textDecoration: 'none', fontSize: 9 }}
+            >
+              NPM: omniops@1.0.0
+            </a>
+            <span
+              className="font-code"
+              style={{
+                fontSize: 10,
+                padding: '4px 8px',
+                border: '2px solid #212529',
+                backgroundColor: backendOnline ? '#e6f9d8' : '#fdf0d5',
+              }}
+            >
+              <Database size={10} className="inline mr-1" />
+              API: {backendOnline ? 'ONLINE' : 'LOCAL'}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* ============ HERO ============ */}
+      <section className="max-w-6xl w-full mx-auto px-4 pt-10 pb-8">
+        <p className="font-arcade text-neutral-500" style={{ fontSize: 9, marginBottom: 12 }}>
+          {'> THEME: AGENTIC AI & INTELLIGENT SYSTEMS'}
+          <span className="blink">_</span>
+        </p>
+        <h1
+          className="font-arcade leading-relaxed"
+          style={{ fontSize: 'clamp(16px, 3.5vw, 26px)', maxWidth: 900 }}
+        >
+          AUTONOMOUS OPS.
+          <br />
+          <span style={{ color: '#209cee' }}>ZERO MANUAL</span>{' '}
+          <span style={{ color: '#92cc41' }}>COORDINATION.</span>
+        </h1>
+        <p className="mt-4 text-neutral-700" style={{ fontSize: 14, maxWidth: 640 }}>
+          A business is drowning in repetitive decision-making, fragmented workflows, and manual
+          coordination across systems. OmniOps dispatches a{' '}
+          <strong>4-agent autonomous swarm</strong> that plans, investigates, verifies, and
+          resolves production incidents in seconds — with a human approval gate for high-stakes actions.
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <a href="#pipeline" className="nes-btn is-success font-arcade nes-btn-sm">
+            RUN DEMO SWARM
+          </a>
+          <Link to="/docs" className="nes-btn font-arcade nes-btn-sm">
+            VIEW DOCS
+          </Link>
+          <span className="font-code text-neutral-500" style={{ fontSize: 11 }}>
+            v1.0 · Autonomous 4-Agent Swarm · Live Production
+          </span>
+        </div>
+      </section>
 
             {/* ============ PIPELINE ============ */}
             <section id="pipeline" className="max-w-6xl w-full mx-auto px-4 pb-8 scroll-mt-20">
@@ -376,8 +396,8 @@ function App() {
                         </div>
                         <div className="font-arcade" style={{ fontSize: 8, color: agent.color }}>
                           {agent.name}
-                          {isRunning && ' ●'}
-                          {isDone && !isRunning && ' ✓'}
+                          {isRunning && ' [RUNNING]'}
+                          {isDone && !isRunning && ' [OK]'}
                         </div>
                         <p className="font-code text-neutral-600 text-center" style={{ fontSize: 10, lineHeight: 1.5 }}>
                           {agent.desc}
@@ -515,7 +535,7 @@ function App() {
                       className={`nes-btn ${isExecuting ? 'is-disabled' : 'is-primary'} w-full font-arcade`}
                       style={{ fontSize: 9, padding: '10px 8px' }}
                     >
-                      {isExecuting ? '⏳ ORCHESTRATING...' : '▶ DISPATCH 4-AGENT SWARM'}
+                      {isExecuting ? 'ORCHESTRATING...' : 'DISPATCH 4-AGENT SWARM'}
                     </button>
                   </form>
                 </div>
@@ -706,11 +726,12 @@ function App() {
                     STACK
                   </div>
                   <ul className="font-code" style={{ fontSize: 10, lineHeight: 2 }}>
-                    <li>▸ React 19 + Vite</li>
-                    <li>▸ React Router</li>
-                    <li>▸ NES.css (this sketch)</li>
-                    <li>▸ Express.js + JWT (planned)</li>
-                    <li>▸ SQLite (planned)</li>
+                    <li>- React 19 + Vite</li>
+                    <li>- React Router</li>
+                    <li>- Express.js + JWT (Active)</li>
+                    <li>- SQLite WAL Mode (Active)</li>
+                    <li>- LangSmith Tracing (Active)</li>
+                    <li>- npm: omniops@1.0.0</li>
                   </ul>
                 </div>
                 <div>
@@ -718,10 +739,10 @@ function App() {
                     AGENT ROLES
                   </div>
                   <ul className="font-code" style={{ fontSize: 10, lineHeight: 2 }}>
-                    <li>▸ Planner — decompose & plan</li>
-                    <li>▸ Investigator — gather context</li>
-                    <li>▸ Verifier — safety gate</li>
-                    <li>▸ Synthesizer — resolution</li>
+                    <li>- Planner: decompose & plan</li>
+                    <li>- Investigator: gather telemetry</li>
+                    <li>- Verifier: safety gate</li>
+                    <li>- Synthesizer: resolution & comms</li>
                   </ul>
                 </div>
                 <div>
@@ -729,22 +750,27 @@ function App() {
                     HUMAN-IN-THE-LOOP
                   </div>
                   <ul className="font-code" style={{ fontSize: 10, lineHeight: 2 }}>
-                    <li>▸ Approval gate on infra changes</li>
-                    <li>▸ Signed audit trail</li>
-                    <li>▸ SLA priority tiers</li>
+                    <li>- Approval gate on infra mutations</li>
+                    <li>- Signed audit trail</li>
+                    <li>- SLA priority tiers</li>
+                    <li>- Slack webhook alerts</li>
                   </ul>
                 </div>
               </div>
               <div className="text-center pb-4 font-code" style={{ fontSize: 9, color: '#888' }}>
-                16Bits · Theme: Agentic AI & Intelligent Systems · sketch build
+                16Bits OmniOps · Theme: Agentic AI & Intelligent Systems · Production Release 1.0.0
                 <Clock size={9} className="inline ml-1" />
               </div>
             </footer>
           </div>
-        }
-      />
-    </Routes>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/docs" element={<DocsPage />} />
+      <Route path="*" element={<ConsoleView />} />
+    </Routes>
+  )
+}

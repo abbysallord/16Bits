@@ -46,7 +46,17 @@ export interface SwarmResult {
   executionDurationMs: number
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '')
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return 'https://one6bits.onrender.com'
+  }
+  return 'http://localhost:8000'
+}
+
+export const API_BASE_URL = getApiBaseUrl()
 
 export async function checkBackendHealth(): Promise<HealthStatus> {
   const res = await fetch(`${API_BASE_URL}/api/health`)
@@ -188,4 +198,18 @@ export async function fetchRunbooks(): Promise<Array<{ filename: string; title: 
     return []
   }
 }
+
+export async function uploadRunbook(filename: string, content: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/agents/runbooks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, content })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to upload runbook')
+  }
+  return res.json()
+}
+
 
