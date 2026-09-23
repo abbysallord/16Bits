@@ -103,25 +103,24 @@ layout: default
 
 ```mermaid
 graph LR
-    Client["React + Vite Frontend\n(Tailwind v4 / Lucide)"]
-    API["Express.js Gateway\n(JWT + bcrypt + Zod)"]
-    DB[("SQLite Database\n(Users / Incidents / Logs)")]
-    Swarm["Autonomous 4-Agent Coordinator"]
-    AI["Google Gemini / Groq LPUs\n(Sub-second Inference)"]
+    Client["React + Vite / CLI / Skill\n(Terminal & Web & Agent)"]
+    API["Express.js Gateway\n(JWT + Zod + SQLite)"]
+    Swarm["4-Agent Consensus Swarm\n(Planner • Investigator • Verifier • Synthesizer)"]
+    Obs["LangSmith Observability\n(RunTree Trace Spans)"]
+    Runbooks["Local SOP Runbooks & OS Telemetry\n(Markdown SOPs + Host Vitals)"]
 
-    Client -->|SSE / REST| API
-    API -->|Validate & Query| DB
+    Client -->|REST / SSE / CLI| API
     API -->|Dispatch| Swarm
-    Swarm -->|Multi-Turn Consensus| AI
-    Swarm -->|Store Audit Trail| DB
-    API -->|Real-Time Chunks| Client
+    Swarm -->|Child Spans| Obs
+    Swarm -->|Inspect| Runbooks
+    Swarm -->|Audit Trail| API
 ```
 
 <div class="mt-4 p-3 bg-neutral-900 border border-neutral-800 rounded-lg text-xs font-mono text-gray-400 flex justify-around">
   <span>⚡ Frontend: React + Vite</span>
   <span>⚡ Backend: Express.js (Node.js)</span>
-  <span>⚡ Auth: JWT + bcrypt</span>
-  <span>⚡ Storage: SQLite</span>
+  <span>⚡ Observability: LangSmith Tracing</span>
+  <span>⚡ Agents: CLI + SKILL.md</span>
 </div>
 
 ---
@@ -133,9 +132,9 @@ layout: two-cols
 <v-clicks>
 
 - **Target Market**: SaaS platforms, Fintech payment gateways, Cloud infrastructure providers.
-- **Measured Advantage**: Reduces incident resolution time from **45 minutes to 3.8 seconds** (99% reduction).
-- **Compliance & Safety**: Pre-generation verification gate prevents hallucinated or unauthorized system operations.
-- **Enterprise Ready**: Full relational audit logs stored in SQLite for forensic review.
+- **Measured Advantage**: Reduces incident resolution time from **45 minutes to 3.4 seconds** (99% reduction).
+- **Compliance & Safety**: Pre-generation verification gate prevents hallucinated or unauthorized system operations (`AWAITING_APPROVAL`).
+- **100% Transparent Observability**: Every agent thought and tool call logged live to LangSmith.
 
 </v-clicks>
 
@@ -144,9 +143,10 @@ layout: two-cols
 <div class="p-6 bg-emerald-950/20 border border-emerald-500/30 rounded-xl m-4">
   <h3 class="text-emerald-400 font-bold mb-2">The Competitive Moat</h3>
   <ul class="text-gray-300 text-sm space-y-2">
-    <li>• <strong>Multi-Agent Consensus</strong> vs. brittle single prompts</li>
-    <li>• <strong>Zero cloud database downtime</strong> with local SQLite</li>
-    <li>• <strong>Instant response latency</strong> under 4 seconds</li>
+    <li>• <strong>Multi-Agent Swarm</strong> vs. brittle single prompts</li>
+    <li>• <strong>Human-in-the-Loop Safety Gate</strong> for high-risk operations</li>
+    <li>• <strong>Universal Interfaces</strong>: Web UI + Terminal CLI + Agent Skill (`SKILL.md`)</li>
+    <li>• <strong>Live LangSmith Tracing</strong> with sub-4-second latency</li>
   </ul>
 </div>
 
