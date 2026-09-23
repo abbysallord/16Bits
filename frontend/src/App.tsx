@@ -29,7 +29,7 @@ export default function App() {
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [checkingHealth, setCheckingHealth] = useState<boolean>(true)
   const [models, setModels] = useState<ModelOption[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>('llama-3.3-70b-versatile')
+  const [selectedModel, setSelectedModel] = useState<string>('qwen/qwen3.8-27b')
   const [activeTab, setActiveTab] = useState<'agent' | 'matrix' | 'team'>('agent')
   
   // Chat state
@@ -240,10 +240,9 @@ export default function App() {
                     ))
                   ) : (
                     <>
-                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Versatile)</option>
-                      <option value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</option>
-                      <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Logic & Math)</option>
-                      <option value="deepseek-r1-distill-llama-70b">DeepSeek R1 Distill</option>
+                      <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Default Reasoning)</option>
+                      <option value="openai/gpt-oss-120b">GPT OSS 120B (Massive Knowledge)</option>
+                      <option value="openai/gpt-oss-20b">GPT OSS 20B (Sub-second Rapid)</option>
                     </>
                   )}
                 </select>

@@ -39,7 +39,7 @@ export async function fetchAvailableModels(): Promise<ModelOption[]> {
 
 export async function sendChatMessage(
   messages: ChatMessage[],
-  model: string = 'llama-3.3-70b-versatile',
+  model: string = 'qwen/qwen3.8-27b',
   temperature: number = 0.1
 ): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/api/chat`, {
@@ -67,7 +67,7 @@ export async function streamChatMessage(
   onChunk: (chunk: string) => void,
   onComplete: () => void,
   onError: (err: string) => void,
-  model: string = 'llama-3.3-70b-versatile'
+  model: string = 'qwen/qwen3.8-27b'
 ) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat`, {

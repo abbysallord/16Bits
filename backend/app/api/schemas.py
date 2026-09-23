@@ -7,7 +7,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(..., description="List of messages in conversation")
-    model: Optional[str] = Field(default="llama-3.3-70b-versatile", description="Groq model ID")
+    model: Optional[str] = Field(default="qwen/qwen3.8-27b", description="Groq model ID")
     temperature: Optional[float] = Field(default=0.1, ge=0.0, le=1.0, description="Sampling temperature (0.0 or 0.1 for high stability)")
     max_tokens: Optional[int] = Field(default=2048, ge=64, le=8192, description="Max response tokens")
     stream: Optional[bool] = Field(default=False, description="Whether to stream response tokens")

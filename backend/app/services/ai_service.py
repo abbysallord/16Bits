@@ -35,7 +35,7 @@ class AIService:
     async def generate_chat(
         self,
         messages: List[ChatMessage],
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "qwen/qwen3.8-27b",
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> Dict[str, Any]:
@@ -57,7 +57,7 @@ class AIService:
     async def stream_chat(
         self,
         messages: List[ChatMessage],
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "qwen/qwen3.8-27b",
         temperature: float = 0.1,
         max_tokens: int = 2048,
     ) -> AsyncGenerator[str, None]:

@@ -19,13 +19,12 @@ async def health_check():
 
 @router.get("/models")
 async def list_models():
-    """List recommended fast hackathon models available via Groq."""
+    """List active fast hackathon models available via Groq."""
     return {
         "models": [
-            {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B (Default Versatile)", "speed": "Ultra Fast"},
-            {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B (Sub-second Instant)", "speed": "Blazing"},
-            {"id": "qwen/qwen3.8-27b", "name": "Qwen 3.8 27B (High Accuracy / Logic)", "speed": "Very Fast"},
-            {"id": "deepseek-r1-distill-llama-70b", "name": "DeepSeek R1 Distill (Deep Reasoning)", "speed": "Fast"},
+            {"id": "qwen/qwen3.8-27b", "name": "Qwen 3.8 27B (Default High-Reasoning)", "speed": "Ultra Fast"},
+            {"id": "openai/gpt-oss-120b", "name": "GPT OSS 120B (Massive Knowledge)", "speed": "Fast"},
+            {"id": "openai/gpt-oss-20b", "name": "GPT OSS 20B (Sub-second Rapid)", "speed": "Blazing"},
         ]
     }
 
