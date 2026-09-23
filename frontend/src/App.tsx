@@ -9,7 +9,6 @@ import {
   Terminal,
   Search,
   Sparkles,
-  Database,
   ArrowRight,
   FileText,
   Copy,
@@ -240,8 +239,6 @@ function ConsoleView() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const backendOnline = health?.status === 'ok'
-
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f8f8' }}>
       {/* ============ HEADER ============ */}
@@ -302,23 +299,11 @@ function ConsoleView() {
               href="https://www.npmjs.com/package/omniops"
               target="_blank"
               rel="noreferrer"
-              className="nes-btn is-warning nes-btn-xs font-arcade hidden sm:inline-block"
+              className="nes-btn is-warning nes-btn-xs font-arcade"
               style={{ textDecoration: 'none', fontSize: 9 }}
             >
-              NPM: omniops@1.0.0
+              NPM: omniops@1.0.1
             </a>
-            <span
-              className="font-code"
-              style={{
-                fontSize: 10,
-                padding: '4px 8px',
-                border: '2px solid #212529',
-                backgroundColor: backendOnline ? '#e6f9d8' : '#fdf0d5',
-              }}
-            >
-              <Database size={10} className="inline mr-1" />
-              API: {backendOnline ? 'ONLINE' : 'LOCAL'}
-            </span>
           </div>
         </div>
       </header>

@@ -4,18 +4,14 @@ import {
   BookOpen,
   Copy,
   CheckCheck,
-  Database,
   Zap,
 } from 'lucide-react'
 import {
-  checkBackendHealth,
   fetchRunbooks,
   uploadRunbook,
 } from '../services/api'
-import type { HealthStatus } from '../services/api'
 
 export default function DocsPage() {
-  const [health, setHealth] = useState<HealthStatus | null>(null)
   const [runbooks, setRunbooks] = useState<Array<{ filename: string; title: string; content: string }>>([])
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [uploadFilename, setUploadFilename] = useState('sop-kubernetes-crashloop.md')
@@ -49,7 +45,6 @@ requires_approval: true
   const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
-    checkBackendHealth().then(setHealth).catch(() => setHealth(null))
     loadRunbooks()
   }, [])
 
@@ -79,8 +74,6 @@ requires_approval: true
       setIsUploading(false)
     }
   }
-
-  const backendOnline = health?.status === 'ok'
 
   const SKILL_MD_TEXT = `---
 name: 16bits-ops
@@ -183,23 +176,11 @@ npx omniops listen --port 8000
               href="https://www.npmjs.com/package/omniops"
               target="_blank"
               rel="noreferrer"
-              className="nes-btn is-warning font-arcade nes-btn-xs hidden md:inline-block"
+              className="nes-btn is-warning font-arcade nes-btn-xs"
               style={{ textDecoration: 'none', fontSize: 9 }}
             >
-              NPM: omniops@1.0.0
+              NPM: omniops@1.0.1
             </a>
-            <span
-              className="font-mono text-xs px-2.5 py-1.5"
-              style={{
-                border: '2px solid #212529',
-                backgroundColor: backendOnline ? '#e6f9d8' : '#fdf0d5',
-                color: '#212529',
-                fontWeight: 600,
-              }}
-            >
-              <Database size={12} className="inline mr-1.5 -mt-0.5" />
-              API: {backendOnline ? 'ONLINE' : 'LOCAL'}
-            </span>
           </div>
         </div>
       </header>
@@ -254,6 +235,9 @@ npx omniops listen --port 8000
               </a>
               <a href="#compliance" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
                 8. Compliance & Governance
+              </a>
+              <a href="#knowledge-graph" className="block text-neutral-700 hover:text-black hover:font-bold transition-colors">
+                9. Code Knowledge Graph (AST)
               </a>
             </nav>
 
@@ -763,6 +747,61 @@ npx omniops listen --port 8000
                   and mirrored to LangSmith.
                 </li>
               </ul>
+            </div>
+          </section>
+
+          {/* SECTION 9: CODEBASE KNOWLEDGE GRAPH (AST) */}
+          <section id="knowledge-graph" className="nes-container with-title scroll-mt-24" style={{ backgroundColor: '#ffffff', padding: '24px' }}>
+            <p className="title font-arcade" style={{ fontSize: 10 }}>
+              9. Codebase Knowledge Graph (AST Architecture)
+            </p>
+            <div className="text-sm md:text-base text-neutral-800 space-y-4 leading-relaxed">
+              <p>
+                To eliminate AI hallucination during incident triage, 16Bits OmniOps employs static
+                Abstract Syntax Tree (AST) extraction and community detection across the backend codebase
+                using Graphify.
+              </p>
+
+              <div
+                className="p-4 my-3"
+                style={{
+                  backgroundColor: '#f8fafc',
+                  border: '3px solid #212529',
+                  boxShadow: '4px 4px 0px rgba(0,0,0,0.1)',
+                }}
+              >
+                <div className="font-arcade text-xs text-neutral-900 mb-2">
+                  STATIC AST PIPELINE & ARCHITECTURAL CLUSTERING
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm">
+                  <div className="p-3 bg-blue-50 border-2 border-blue-200">
+                    <span className="font-bold text-blue-900 block text-sm mb-1">AST Structural Extraction:</span>
+                    <p className="text-neutral-700 leading-relaxed">
+                      Parses TypeScript code into deterministic symbol graphs (functions, imports, class hierarchies)
+                      with zero LLM guessing or hallucinations.
+                    </p>
+                  </div>
+                  <div className="p-3 bg-purple-50 border-2 border-purple-200">
+                    <span className="font-bold text-purple-900 block text-sm mb-1">Leiden Community Detection:</span>
+                    <p className="text-neutral-700 leading-relaxed">
+                      Partitions code into tightly-coupled modules: Authentication, Database Access,
+                      Swarm Orchestration, Guardrails, and Webhook Ingestion.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-neutral-100 border border-neutral-300 text-xs font-mono">
+                <span className="font-bold block text-neutral-900 mb-1">Interactive Graph & Audit Artifacts:</span>
+                <span className="text-neutral-700 block">
+                  Artifact directory: <code className="bg-white px-1 border border-neutral-300">backend/graphify-out/</code>
+                </span>
+                <span className="text-neutral-700 block mt-1">
+                  Files: <code className="bg-white px-1 border border-neutral-300">graph.html</code> (interactive visual canvas),{' '}
+                  <code className="bg-white px-1 border border-neutral-300">GRAPH_REPORT.md</code> (architectural god nodes & coupling audit),{' '}
+                  <code className="bg-white px-1 border border-neutral-300">graph.json</code> (networkx raw data).
+                </span>
+              </div>
             </div>
           </section>
         </main>
