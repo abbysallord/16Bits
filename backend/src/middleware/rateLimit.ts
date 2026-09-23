@@ -68,6 +68,24 @@ export const loginLimiter = rateLimit({
   message: 'Too many failed sign-in attempts for this account. Try again in a few minutes.',
   failedOnly: true,
 })
+// Password reset with a one-time code: 10 wrong codes per email per 15 minutes
+export const resetLimiter = rateLimit({
+  name: 'reset',
+  max: 10,
+  windowMs: 15 * MIN,
+  key: (req) => String(req.body?.email || '').toLowerCase(),
+  message: 'Too many reset attempts for this account. Try again in a few minutes.',
+  failedOnly: true,
+})
+// Change password while signed in: 10 wrong current passwords per account per 15 minutes
+export const changePasswordLimiter = rateLimit({
+  name: 'change-password',
+  max: 10,
+  windowMs: 15 * MIN,
+  key: (req) => String((req as any).user?.id || ''),
+  message: 'Too many wrong passwords. Try again in a few minutes.',
+  failedOnly: true,
+})
 export const registerLimiter = rateLimit({ name: 'register', max: 20, windowMs: 60 * MIN, message: 'Too many sign-ups from this address. Try again later.' })
 // Each run makes several LLM calls; keep one client from burning the Groq quota.
 // 60 per 10 minutes per IP leaves room for a room of judges sharing one venue Wi-Fi address

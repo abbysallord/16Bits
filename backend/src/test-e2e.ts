@@ -535,6 +535,65 @@ async function runTests() {
     }
   }
 
+  // TEST 15: Password reset without email (admin-issued one-time code) and change password
+  try {
+    const stamp = Date.now()
+    const adm = await request('/api/auth/register', { method: 'POST', body: { name: 'Reset Admin', email: `ra-${stamp}@example.com`, password: 'secret123', teamName: `Reset ${stamp}` } })
+    const hAdm = { Authorization: `Bearer ${adm.data.token}` }
+    const org = await request('/api/org', { headers: hAdm })
+    const opEmail = `ro-${stamp}@example.com`
+    const op = await request('/api/auth/register', { method: 'POST', body: { name: 'Reset Operator', email: opEmail, password: 'secret123', inviteCode: org.data.org.inviteCode } })
+    const other = await request('/api/auth/register', { method: 'POST', body: { name: 'Other Admin', email: `rx-${stamp}@example.com`, password: 'secret123', teamName: `Other ${stamp}` } })
+    const checks: Record<string, boolean> = {}
+
+    const org2 = await request('/api/org', { headers: hAdm })
+    const opMember = (org2.data.org.members || []).find((m: any) => m.email === opEmail)
+    checks.adminSeesMemberIds = Boolean(opMember?.id)
+    const opOrg = await request('/api/org', { headers: { Authorization: `Bearer ${op.data.token}` } })
+    checks.operatorSeesNoIds = (opOrg.data.org.members || []).every((m: any) => !m.id)
+
+    const byOperator = await request(`/api/org/members/${adm.data.user.id}/reset-code`, { method: 'POST', headers: { Authorization: `Bearer ${op.data.token}` } })
+    checks.operatorCannotIssue = byOperator.status === 403
+    const byOtherTeam = await request(`/api/org/members/${op.data.user.id}/reset-code`, { method: 'POST', headers: { Authorization: `Bearer ${other.data.token}` } })
+    checks.otherTeamCannotIssue = byOtherTeam.status === 404
+
+    const issued = await request(`/api/org/members/${op.data.user.id}/reset-code`, { method: 'POST', headers: hAdm })
+    checks.issued = issued.status === 200 && /^[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(issued.data.code || '')
+    const wrong = await request('/api/auth/reset-password', { method: 'POST', body: { email: opEmail, code: 'AAAAA-BBBBB', newPassword: 'newpass456' } })
+    checks.wrongCodeRejected = wrong.status === 400
+    const ok = await request('/api/auth/reset-password', { method: 'POST', body: { email: opEmail, code: String(issued.data.code).toLowerCase(), newPassword: 'newpass456' } })
+    checks.resetWorks = ok.status === 200 && typeof ok.data.token === 'string' && ok.data.user?.email === opEmail
+    const reuse = await request('/api/auth/reset-password', { method: 'POST', body: { email: opEmail, code: issued.data.code, newPassword: 'another789' } })
+    checks.codeSingleUse = reuse.status === 400
+    const oldLogin = await request('/api/auth/login', { method: 'POST', body: { email: opEmail, password: 'secret123' } })
+    const newLogin = await request('/api/auth/login', { method: 'POST', body: { email: opEmail, password: 'newpass456' } })
+    checks.newPasswordOnly = oldLogin.status === 401 && newLogin.status === 200
+
+    const demoReset = await request('/api/auth/reset-password', { method: 'POST', body: { email: 'admin@16bits.io', code: 'AAAAA-BBBBB', newPassword: 'hacked123' } })
+    checks.demoNotResettable = demoReset.status === 400
+
+    // The reset signed out every older session: the operator's original token no longer works
+    const staleAfterReset = await request('/api/auth/me', { headers: { Authorization: `Bearer ${op.data.token}` } })
+    const freshAfterReset = await request('/api/auth/me', { headers: { Authorization: `Bearer ${ok.data.token}` } })
+    checks.resetSignsOutOldSessions = staleAfterReset.status === 401 && freshAfterReset.status === 200
+
+    const hOp = { Authorization: `Bearer ${newLogin.data.token}` }
+    const badChange = await request('/api/auth/change-password', { method: 'POST', headers: hOp, body: { currentPassword: 'wrong', newPassword: 'changed789' } })
+    const goodChange = await request('/api/auth/change-password', { method: 'POST', headers: hOp, body: { currentPassword: 'newpass456', newPassword: 'changed789' } })
+    const changedLogin = await request('/api/auth/login', { method: 'POST', body: { email: opEmail, password: 'changed789' } })
+    checks.changePassword = badChange.status === 400 && goodChange.status === 200 && changedLogin.status === 200
+    const staleAfterChange = await request('/api/auth/me', { headers: hOp })
+    const keptAfterChange = await request('/api/auth/me', { headers: { Authorization: `Bearer ${goodChange.data.token}` } })
+    checks.changeSignsOutOtherSessions = staleAfterChange.status === 401 && keptAfterChange.status === 200
+    const adminStillIn = await request('/api/auth/me', { headers: hAdm })
+    checks.othersUnaffected = adminStillIn.status === 200
+
+    const failed = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k)
+    recordTest('15. Password Reset (admin one-time code) & Change Password', failed.length === 0, failed.length ? `Failed: ${failed.join(', ')}` : `${Object.keys(checks).length} checks passed`)
+  } catch (err: any) {
+    recordTest('15. Password Reset', false, err.message)
+  }
+
   console.log('----------------------------------------------------')
   const passCount = results.filter(r => r.passed).length
   const failCount = results.filter(r => !r.passed).length
