@@ -13,6 +13,8 @@ export interface User {
   email: string
   name: string
   role: string
+  orgId?: string
+  orgName?: string
 }
 
 export interface Incident {
@@ -60,6 +62,21 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl()
 
+// Signed-in requests are scoped to the user's team; signed-out ones see the public demo workspace
+function sessionToken(): string | null {
+  try {
+    const raw = localStorage.getItem('omniops_session')
+    return raw ? JSON.parse(raw).token || null : null
+  } catch {
+    return null
+  }
+}
+
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = sessionToken()
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra
+}
+
 // Thrown when a protected endpoint rejects the session (missing/expired token)
 export class UnauthorizedError extends Error {
   constructor(message = 'Please sign in as an operator') {
@@ -93,11 +110,16 @@ export async function loginUser(email: string, password: string): Promise<{ toke
   return res.json()
 }
 
-export async function registerUser(name: string, email: string, password: string): Promise<{ token: string; user: User }> {
+export async function registerUser(
+  name: string,
+  email: string,
+  password: string,
+  team: { teamName?: string; inviteCode?: string } = {}
+): Promise<{ token: string; user: User }> {
   const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password })
+    body: JSON.stringify({ name, email, password, ...team })
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -108,15 +130,15 @@ export async function registerUser(name: string, email: string, password: string
 }
 
 export async function fetchIncidents(): Promise<Incident[]> {
-  const res = await fetch(`${API_BASE_URL}/api/incidents`)
+  const res = await fetch(`${API_BASE_URL}/api/incidents`, { headers: authHeaders() })
   if (!res.ok) throw new Error('Failed to fetch incidents')
   const data = await res.json()
   return data.incidents || []
 }
 
 export async function fetchIncidentDetails(id: string): Promise<{ incident: Incident; logs: AgentStepLog[] }> {
-  const res = await fetch(`${API_BASE_URL}/api/incidents/${id}`)
-  if (!res.ok) throw new Error('Failed to fetch incident details')
+  const res = await fetch(`${API_BASE_URL}/api/incidents/${id}`, { headers: authHeaders() })
+  if (!res.ok) await throwApiError(res, 'Failed to fetch incident details')
   return res.json()
 }
 
@@ -129,7 +151,7 @@ export async function runSwarm(payload: {
 }): Promise<{ message: string; result: SwarmResult }> {
   const res = await fetch(`${API_BASE_URL}/api/agents/execute`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload)
   })
   if (!res.ok) {
@@ -154,7 +176,7 @@ export async function streamSwarm(
   try {
     const res = await fetch(`${API_BASE_URL}/api/agents/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload)
     })
 
@@ -225,7 +247,7 @@ export interface RunbookSummary {
 
 export async function fetchRunbooks(): Promise<RunbookSummary[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agents/runbooks`)
+    const res = await fetch(`${API_BASE_URL}/api/agents/runbooks`, { headers: authHeaders() })
     if (!res.ok) return []
     const data = await res.json()
     return data.runbooks || []
@@ -255,7 +277,7 @@ export interface RunbookSearchResponse {
 }
 
 export async function searchRunbooks(q: string): Promise<RunbookSearchResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/agents/runbooks/search?q=${encodeURIComponent(q)}`)
+  const res = await fetch(`${API_BASE_URL}/api/agents/runbooks/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() })
   if (!res.ok) await throwApiError(res, 'Runbook search failed')
   return res.json()
 }
@@ -267,3 +289,34 @@ export async function deleteRunbook(filename: string, token: string): Promise<vo
   })
   if (!res.ok) await throwApiError(res, 'Failed to delete runbook')
 }
+
+export interface OrgSettings {
+  id: string
+  name: string
+  isDemo: boolean
+  canEdit: boolean
+  role?: string
+  inviteCode: string | null
+  alertUrls: { alertmanager: string; pagerduty: string; datadog: string; generic: string } | null
+  slack: { configured: boolean; source: 'team' | 'server' | null; webhookPreview: string | null }
+  groq: { ownKey: boolean; keyPreview: string | null }
+  members: Array<{ name: string; email?: string; role: string }>
+}
+
+async function orgCall(path: string, token: string, init: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/api/org${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) await throwApiError(res, 'Request failed')
+  return res.json()
+}
+
+export const fetchOrg = (token: string): Promise<{ org: OrgSettings }> => orgCall('', token)
+export const updateOrg = (token: string, body: { name?: string; slackWebhookUrl?: string; groqApiKey?: string }): Promise<{ message: string; org: OrgSettings }> =>
+  orgCall('', token, { method: 'PATCH', body: JSON.stringify(body) })
+export const testOrgSlack = (token: string): Promise<{ message: string }> => orgCall('/slack/test', token, { method: 'POST' })
+export const rotateAlertKey = (token: string): Promise<{ message: string; org: OrgSettings }> => orgCall('/rotate-alert-key', token, { method: 'POST' })
+export const rotateInvite = (token: string): Promise<{ message: string; org: OrgSettings }> => orgCall('/rotate-invite', token, { method: 'POST' })
+export const joinTeam = (token: string, inviteCode: string): Promise<{ message: string; token: string; user: User }> =>
+  orgCall('/join', token, { method: 'POST', body: JSON.stringify({ inviteCode }) })

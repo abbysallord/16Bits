@@ -5,6 +5,7 @@ import IncidentPage from './pages/IncidentPage'
 import DashboardPage from './pages/DashboardPage'
 import AgentLabPage from './pages/AgentLabPage'
 import AuditPage from './pages/AuditPage'
+import SettingsPage from './pages/SettingsPage'
 import {
   Activity,
   ShieldCheck,
@@ -96,13 +97,13 @@ function ConsoleView() {
   const [approvedLocally, setApprovedLocally] = useState(false)
   const [approvedBy, setApprovedBy] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const { ensureToken, logout } = useAuth()
+  const { ensureToken, logout, user } = useAuth()
 
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadIncidents()
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -691,6 +692,7 @@ export default function App() {
       <Route path="/audit" element={<AuditPage />} />
       <Route path="/docs" element={<DocsPage />} />
       <Route path="/incidents/:id" element={<IncidentPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
       <Route path="*" element={<ConsoleView />} />
     </Routes>
   )

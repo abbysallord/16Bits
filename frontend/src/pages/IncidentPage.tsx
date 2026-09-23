@@ -32,7 +32,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function IncidentPage() {
   const { id = '' } = useParams()
-  const { ensureToken, logout } = useAuth()
+  const { ensureToken, logout, user } = useAuth()
   const [incident, setIncident] = useState<Incident | null>(null)
   const [logs, setLogs] = useState<LogRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +48,9 @@ export default function IncidentPage() {
     } catch (err: any) {
       setError(err.message || 'Could not load incident')
     }
-  }, [id])
+    // Re-load after sign-in/out: incidents are visible only to their own team
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.id])
 
   useEffect(() => {
     load()
@@ -101,6 +103,11 @@ export default function IncidentPage() {
         {error && (
           <div className="panel mt-4" style={{ backgroundColor: 'var(--bg-panel)' }}>
             <p className="font-code" style={{ fontSize: 12, color: 'var(--danger)' }}>[ERROR] {error}</p>
+            {!user && (
+              <button type="button" className="btn btn-success btn-xs font-display mt-2" style={{ fontSize: 9 }} onClick={() => ensureToken()}>
+                SIGN IN TO VIEW
+              </button>
+            )}
           </div>
         )}
 

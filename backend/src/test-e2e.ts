@@ -3,6 +3,7 @@
  */
 
 import { guardrailService } from './services/guardrailService.js'
+import { verifierVerdictZod } from './schemas/aiSchemas.js'
 
 const BASE_URL = 'http://localhost:8000'
 
@@ -256,11 +257,12 @@ async function runTests() {
       method: 'POST',
       body: { name: 'E2E Operator', email, password: 'secret123' }
     })
-    const passed = status === 201 && Boolean(data.token) && data.user?.role === 'operator' && dup.status === 409
+    // A new sign-up creates its own team and is that team's admin (the client-sent role is ignored either way)
+    const passed = status === 201 && Boolean(data.token) && data.user?.role === 'admin' && Boolean(data.user?.orgId) && data.user?.orgId !== 'demo' && dup.status === 409
     recordTest(
       '4b. Operator Self-Registration (/api/auth/register)',
       passed,
-      `Status: ${status}, Role: ${data.user?.role}, Duplicate email status: ${dup.status}`
+      `Status: ${status}, Role: ${data.user?.role} of new team ${data.user?.orgName}, Duplicate email status: ${dup.status}`
     )
   } catch (err: any) {
     recordTest('4b. Operator Self-Registration', false, err.message)
@@ -391,6 +393,98 @@ async function runTests() {
     }
   }
 
+  // TEST 13: Multi-tenancy - two teams are isolated; invite codes, team alert URLs and team Slack
+  try {
+    const http = await import('http')
+    const slackHits: any[] = []
+    const slackServer = http.createServer((req, res) => {
+      let b = ''
+      req.on('data', (d) => (b += d))
+      req.on('end', () => {
+        try { slackHits.push({ path: req.url, body: JSON.parse(b) }) } catch { slackHits.push({ path: req.url }) }
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((r) => slackServer.listen(9902, r))
+
+    const stamp = Date.now()
+    const regA = await request('/api/auth/register', { method: 'POST', body: { name: 'Team A Admin', email: `a-${stamp}@example.com`, password: 'secret123', teamName: `Team A ${stamp}` } })
+    const regB = await request('/api/auth/register', { method: 'POST', body: { name: 'Team B Admin', email: `b-${stamp}@example.com`, password: 'secret123', teamName: `Team B ${stamp}` } })
+    const tokA = regA.data.token
+    const tokB = regB.data.token
+    const hA = { Authorization: `Bearer ${tokA}` }
+    const hB = { Authorization: `Bearer ${tokB}` }
+    const orgA = await request('/api/org', { headers: hA })
+    const checks: Record<string, boolean> = {}
+
+    // Invite: a teammate joins team A as operator
+    const regA2 = await request('/api/auth/register', { method: 'POST', body: { name: 'Team A Operator', email: `a2-${stamp}@example.com`, password: 'secret123', inviteCode: orgA.data.org.inviteCode, role: 'admin' } })
+    checks.inviteJoin = regA2.status === 201 && regA2.data.user.orgId === regA.data.user.orgId && regA2.data.user.role === 'operator'
+    const badInvite = await request('/api/auth/register', { method: 'POST', body: { name: 'Nope', email: `n-${stamp}@example.com`, password: 'secret123', inviteCode: 'not-a-code' } })
+    checks.badInvite = badInvite.status === 400
+    const opPatch = await request('/api/org', { method: 'PATCH', headers: { Authorization: `Bearer ${regA2.data.token}` }, body: { name: 'hijack' } })
+    checks.operatorCannotEdit = opPatch.status === 403
+
+    // Team A connects Slack (local mock; the server must run with ALLOW_LOCAL_SLACK_URL=1 for this check)
+    const slackPatch = await request('/api/org', { method: 'PATCH', headers: hA, body: { slackWebhookUrl: 'http://localhost:9902/services/team-a' } })
+    const rejected = await request('/api/org', { method: 'PATCH', headers: hB, body: { slackWebhookUrl: 'http://169.254.169.254/latest' } })
+    const slackTest = await request('/api/org/slack/test', { method: 'POST', headers: hA })
+    checks.slackConnect = slackPatch.status === 200 && slackPatch.data.org.slack.configured === true && slackTest.status === 200
+    checks.slackUrlValidated = rejected.status === 400
+
+    // Team A's own alert URL creates an incident in team A only
+    const url = new URL(orgA.data.org.alertUrls.alertmanager)
+    const alertRes = await request(`${url.pathname}`, {
+      method: 'POST',
+      body: { version: '4', status: 'firing', groupKey: `mt-${stamp}`, alerts: [{ status: 'firing', labels: { alertname: `TeamAOnlyAlert${stamp}`, severity: 'critical' }, annotations: { summary: 'Team A disk full' }, fingerprint: `mt-${stamp}` }] }
+    })
+    const wrongKey = await request('/api/webhooks/t/AAAAAAAAAAAAAAAAAAAAAAAA/alertmanager', { method: 'POST', body: { version: '4', status: 'firing', alerts: [] } })
+    checks.teamAlertUrl = alertRes.status === 202 && Boolean(alertRes.data.incidentId) && wrongKey.status === 401
+    const aIncident = alertRes.data.incidentId
+
+    // Wait for the background triage (and Slack post) to finish
+    for (let i = 0; i < 40; i++) {
+      const d = await request(`/api/incidents/${aIncident}`, { headers: hA })
+      if (d.data.incident && d.data.incident.status !== 'ANALYZING' && d.data.incident.status !== 'PENDING') break
+      await new Promise((r) => setTimeout(r, 500))
+    }
+
+    // Isolation
+    const listA = await request('/api/incidents', { headers: hA })
+    const listB = await request('/api/incidents', { headers: hB })
+    const listPublic = await request('/api/incidents')
+    const getB = await request(`/api/incidents/${aIncident}`, { headers: hB })
+    const getAnon = await request(`/api/incidents/${aIncident}`)
+    const approveB = await request('/api/agents/approve', { method: 'POST', headers: hB, body: { incidentId: aIncident } })
+    const rerunB = await request('/api/agents/execute', { method: 'POST', headers: hB, body: { incidentId: aIncident, title: 'x hijack', description: 'hijack attempt on another team', priority: 'LOW' } })
+    checks.isolation =
+      listA.data.incidents.some((i: any) => i.id === aIncident) &&
+      !listB.data.incidents.some((i: any) => i.id === aIncident) &&
+      !listPublic.data.incidents.some((i: any) => i.id === aIncident) &&
+      getB.status === 404 && getAnon.status === 401 && approveB.status === 404 && rerunB.status === 404
+
+    // Private runbooks
+    const rbName = `team-a-secret-${stamp}.md`
+    await request('/api/agents/runbooks', { method: 'POST', headers: hA, body: { filename: rbName, content: '# Team A private failover SOP\n\nSteps only team A should see.' } })
+    const rbA = await request('/api/agents/runbooks', { headers: hA })
+    const rbB = await request('/api/agents/runbooks', { headers: hB })
+    checks.privateRunbooks = rbA.data.runbooks.some((r: any) => r.filename === rbName) && !rbB.data.runbooks.some((r: any) => r.filename === rbName) && rbB.data.runbooks.length >= 4
+
+    // Team A approves its own incident; Slack got the team A posts only
+    const approveA = await request('/api/agents/approve', { method: 'POST', headers: hA, body: { incidentId: aIncident } })
+    await new Promise((r) => setTimeout(r, 800))
+    const teamAHits = slackHits.filter((h) => h.path === '/services/team-a')
+    const texts = teamAHits.map((h) => h.body?.text || '')
+    checks.teamSlackPosts = texts.some((t) => t.includes('connected')) && texts.some((t) => t.includes(`TeamAOnlyAlert${stamp}`)) && (approveA.status !== 200 || texts.some((t) => t.includes('Approved by')))
+    await request(`/api/agents/runbooks/${rbName}`, { method: 'DELETE', headers: hA })
+    slackServer.close()
+
+    const failed = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k)
+    recordTest('13. Multi-Tenancy: Team Isolation, Invites, Team Alert URL, Team Slack', failed.length === 0, failed.length ? `Failed checks: ${failed.join(', ')}` : `All ${Object.keys(checks).length} checks passed (${Object.keys(checks).join(', ')}); team Slack received ${teamAHits.length} posts`)
+  } catch (err: any) {
+    recordTest('13. Multi-Tenancy', false, err.message)
+  }
+
   // TEST 11: Incident Audit Trail & History Verification
   try {
     const { status, data } = await request('/api/incidents')
@@ -416,6 +510,28 @@ async function runTests() {
       )
     } catch (err: any) {
       recordTest('12. Incident Detail & Trajectory', false, err.message)
+    }
+  }
+
+  // TEST 14: Verification Agent returns a schema-valid JSON verdict, and the gate honors it
+  if (syncIncidentId) {
+    try {
+      const { data } = await request(`/api/incidents/${syncIncidentId}`)
+      const step = (data.logs || []).find((l: any) => l.agent_name === 'Verification Agent')
+      const verdict = step?.data_payload?.verdict
+      const check = verifierVerdictZod.safeParse(verdict)
+      const gated = check.success && (verdict.requiresApproval || verdict.verdict === 'OPERATOR_AUTHORIZATION_REQUIRED' || verdict.risk === 'HIGH' || verdict.risk === 'CRITICAL')
+      // A gated verdict must never auto-resolve: either still held, or closed by a human approval step
+      const humanApproved = (data.logs || []).some((l: any) => l.agent_name === 'Human Operator')
+      const consistent = !gated || data.incident?.status === 'AWAITING_APPROVAL' || humanApproved
+      const passed = check.success && typeof step?.data_payload?.verdictSource === 'string' && consistent
+      recordTest(
+        '14. Structured Verifier Verdict (JSON mode + zod schema)',
+        passed,
+        `verdict=${verdict?.verdict}, risk=${verdict?.risk}, source=${step?.data_payload?.verdictSource}, incident=${data.incident?.status}`
+      )
+    } catch (err: any) {
+      recordTest('14. Structured Verifier Verdict', false, err.message)
     }
   }
 

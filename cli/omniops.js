@@ -55,7 +55,7 @@ function printBanner() {
   const engineLabel = isCloud ? 'Production Cloud' : 'Localhost Dev'
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════════════╗
-║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.3) ║
+║  [16BITS] OmniOps — Autonomous Operations Swarm CLI (v1.0.4) ║
 ║  ${c.dim}// 4-AGENT SWARM · AST CODE KNOWLEDGE · LANGSMITH TRACED //${c.cyan} ║
 ╚══════════════════════════════════════════════════════════════╝${c.reset}
   ${c.dim}Engine Link:${c.reset} [${isCloud ? c.green + engineLabel : c.yellow + engineLabel}${c.reset}] -> ${c.cyan}${API_BASE}${c.reset}
@@ -211,9 +211,13 @@ async function triageIncident(query, priority = 'HIGH') {
   const startTime = Date.now()
 
   try {
+    // With OMNIOPS_TOKEN or OMNIOPS_EMAIL set, runs land in your team's private workspace;
+    // without them they go to the public demo workspace
+    const headers = { 'Content-Type': 'application/json' }
+    if (process.env.OMNIOPS_TOKEN || process.env.OMNIOPS_EMAIL) headers.Authorization = `Bearer ${await getAuthToken()}`
     const res = await fetch(`${API_BASE}/api/agents/execute`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         title: query.split('\n')[0].slice(0, 80) || 'Piped Incident Error',
         description: query,

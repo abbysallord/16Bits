@@ -23,6 +23,8 @@ interface AuthContextValue {
   logout: () => void
   // Increments on each fresh sign-in so the header can flash a short "signed in" banner
   signInCount: number
+  // Replace the session with one the server just issued (e.g. after joining another team)
+  adoptSession: (s: { token: string; user: User }) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -87,6 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         openLogin: () => setDialogOpen(true),
         logout,
         signInCount,
+        adoptSession: (s) => {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+          setSession(s)
+        },
       }}
     >
       {children}
@@ -135,6 +141,8 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [teamName, setTeamName] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [busy, setBusy] = useState(false)
   // Hide the demo button when the backend runs with DEMO_ACCOUNT=off (shown until health says otherwise)
   const [demoEnabled, setDemoEnabled] = useState(true)
@@ -173,7 +181,9 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
     if (!EMAIL_RE.test(email.trim())) return setError('Enter a valid email address')
     if (password.length < 6) return setError('Password must be at least 6 characters')
     if (password !== confirm) return setError('Passwords do not match')
-    return run(() => registerUser(name.trim(), email.trim(), password))
+    return run(() =>
+      registerUser(name.trim(), email.trim(), password, inviteCode.trim() ? { inviteCode: inviteCode.trim() } : { teamName: teamName.trim() || undefined })
+    )
   }
 
   const tabStyle = { fontSize: 8, flex: 1 }
@@ -189,7 +199,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
     >
       <div
         className="panel w-full relative"
-        style={{ maxWidth: 420 }}
+        style={{ maxWidth: 420, maxHeight: '92vh', overflowY: 'auto' }}
         onClick={(ev) => ev.stopPropagation()}
       >
         <p className="font-display absolute" style={{ top: -9, left: 12, fontSize: 9, backgroundColor: 'var(--bg-panel)', padding: '0 7px' }}>
@@ -219,7 +229,7 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
         <p className="font-code" style={{ fontSize: 11, color: 'var(--ink-dim)', marginBottom: 12 }}>
           {mode === 'signin'
             ? 'Approvals and runbook uploads are signed with your operator identity and written to the audit trail.'
-            : 'New accounts get the operator role and can approve incidents and upload runbooks.'}
+            : 'Create a private team (you become its admin) or join one with an invite code.'}
         </p>
 
         {mode === 'signin' && demoEnabled && (
@@ -254,6 +264,15 @@ function LoginDialog({ onSuccess, onCancel }: { onSuccess: (s: Session) => void;
           />
           {mode === 'register' && (
             <Field id="reg-confirm" label="CONFIRM PASSWORD" type="password" value={confirm} autoComplete="new-password" onChange={setConfirm} />
+          )}
+          {mode === 'register' && (
+            <>
+              <Field id="reg-team" label="TEAM NAME (NEW TEAM)" type="text" value={teamName} autoComplete="organization" onChange={setTeamName} />
+              <Field id="reg-invite" label="OR INVITE CODE (JOIN A TEAM)" type="text" value={inviteCode} autoComplete="off" onChange={setInviteCode} />
+              <p className="font-code" style={{ fontSize: 10, color: '#6b6b6b', margin: '-2px 0 8px' }}>
+                Each team gets its own incidents, runbooks, alert URLs and Slack. Leave both empty to start a team of your own.
+              </p>
+            </>
           )}
           {error && (
             <p className="font-code" style={{ fontSize: 11, color: 'var(--danger)', margin: '4px 0 8px' }}>
@@ -350,7 +369,17 @@ export function AuthBadge() {
         >
           <div className="font-display" style={{ fontSize: 8, color: 'var(--ink-faint)', marginBottom: 4 }}>SIGNED IN AS</div>
           <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--ink)' }}>{user.name}</div>
-          <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 8, wordBreak: 'break-all' }}>{user.email}</div>
+          <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 4, wordBreak: 'break-all' }}>{user.email}</div>
+          <div style={{ fontSize: 10, color: 'var(--ink)', marginBottom: 8 }}>
+            TEAM: <b>{user.orgId === 'demo' ? 'Public demo' : user.orgName || 'My team'}</b> · {user.role}
+          </div>
+          <a
+            href="/settings"
+            className="btn btn-primary btn-xs font-display w-full"
+            style={{ fontSize: 8, marginBottom: 6, display: 'block', textAlign: 'center', textDecoration: 'none' }}
+          >
+            TEAM SETTINGS
+          </a>
           <button
             type="button"
             className="btn btn-danger btn-xs font-display w-full"

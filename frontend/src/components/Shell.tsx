@@ -45,6 +45,7 @@ const NAV = [
   { to: '/dashboard', label: 'DASHBOARD' },
   { to: '/agents', label: 'AGENT LAB' },
   { to: '/audit', label: 'AUDIT' },
+  { to: '/settings', label: 'SETTINGS' },
   { to: '/docs', label: 'DOCS' },
 ]
 

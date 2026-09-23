@@ -347,7 +347,7 @@ npx omniops listen --port 8000
                   rel="noreferrer"
                   className="link font-bold underline"
                 >
-                  omniops@1.0.3
+                  omniops@1.0.4
                 </a>
                 . It requires zero local setup to evaluate an alert, or can connect directly to your backend
                 service via the <code className="font-code px-1.5 py-0.5" style={codeBlock}>OMNIOPS_API_URL</code> environment variable.
