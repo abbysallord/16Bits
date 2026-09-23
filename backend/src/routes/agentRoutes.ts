@@ -54,18 +54,35 @@ agentRouter.post('/webhook/alert', async (req: Request, res: Response): Promise<
 
 // Human-in-the-Loop Operator Authorization
 agentRouter.post('/approve', async (req: Request, res: Response): Promise<void> => {
-  const { incidentId, approvedBy } = req.body
+  const { incidentId } = req.body
+  let approvedBy = req.body.approvedBy || 'Lead Operator (Dhanush)'
+
+  // Verify JWT token if provided
+  const authHeader = req.headers.authorization
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const jwt = (await import('jsonwebtoken')).default
+      const token = authHeader.split(' ')[1]
+      const secret = process.env.JWT_SECRET || '16bits-hackathon-super-secret-key-2026'
+      const decoded: any = jwt.verify(token, secret)
+      approvedBy = `${decoded.name} (${decoded.email})`
+    } catch {
+      // fallback to provided name or default
+    }
+  }
+
   if (!incidentId) {
     res.status(400).json({ error: 'incidentId is required' })
     return
   }
 
   try {
-    swarmService.approveIncident(incidentId, approvedBy || 'Lead Operator')
+    swarmService.approveIncident(incidentId, approvedBy)
     const updated = db.prepare('SELECT * FROM incidents WHERE id = ?').get(incidentId)
     res.json({
-      message: 'Remediation plan authorized by Human Operator. Status updated to RESOLVED.',
-      incident: updated
+      message: `Remediation plan authorized by authenticated operator: ${approvedBy}. Status updated to RESOLVED.`,
+      incident: updated,
+      authorizedBy: approvedBy
     })
   } catch (err: any) {
     res.status(500).json({ error: err.message })

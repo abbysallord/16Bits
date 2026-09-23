@@ -4,6 +4,7 @@
  * 16Bits OmniOps CLI Tool
  * Fast, terminal-native autonomous operations client & agent-to-agent interface.
  * Supports direct arguments, piping stdin, and live system diagnosis.
+ * Strict ZERO EMOJI enterprise compliance.
  */
 
 import os from 'os'
@@ -28,7 +29,7 @@ const c = {
 function printBanner() {
   console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════╗
-║  ⚡ 16Bits OmniOps — Autonomous Operations Swarm CLI ║
+║  [16BITS] OmniOps — Autonomous Operations Swarm CLI  ║
 ╚══════════════════════════════════════════════════════╝${c.reset}
 ${c.dim}  Connected to Engine: ${API_BASE}${c.reset}
 `)
@@ -58,6 +59,7 @@ function checkPort(port, host = '127.0.0.1') {
       resolve(false)
     })
     socket.on('error', () => {
+      socket.destroy()
       resolve(false)
     })
     socket.connect(port, host)
@@ -65,22 +67,24 @@ function checkPort(port, host = '127.0.0.1') {
 }
 
 async function checkHealth() {
+  printBanner()
   try {
     const res = await fetch(`${API_BASE}/api/health`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
-    console.log(`${c.green}✔ Engine Status:${c.reset} ${data.status.toUpperCase()} (v${data.version})`)
-    console.log(`${c.green}✔ Database:${c.reset}      ${data.database}`)
-    console.log(`${c.green}✔ AI Engine:${c.reset}     ${data.ai_configured ? 'Active (Groq LPU / LangSmith)' : 'Offline'}`)
-
     const rRes = await fetch(`${API_BASE}/api/agents/runbooks`)
     const rData = await rRes.json()
-    console.log(`${c.cyan}✔ SOP Runbooks:${c.reset}  ${rData.count} active runbooks loaded`)
+
+    console.log(`${c.green}[OK] Engine Status:${c.reset} ${data.status.toUpperCase()} (v${data.version})`)
+    console.log(`${c.green}[OK] Database:${c.reset}      ${data.database}`)
+    console.log(`${c.green}[OK] AI Engine:${c.reset}     ${data.ai_configured ? `Active (${data.ai_provider || 'Neural'})` : 'Mock Engine'}`)
+    console.log(`${c.cyan}[OK] SOP Runbooks:${c.reset}  ${rData.count} active runbooks loaded\n`)
+
+    console.log(`${c.bold}Loaded Runbooks:${c.reset}`)
     rData.runbooks.forEach((r) => {
       console.log(`  ${c.dim}• [${r.filename}] ${r.title}${c.reset}`)
     })
   } catch (err) {
-    console.error(`${c.red}✖ Failed to connect to OmniOps Engine at ${API_BASE}:${c.reset}`, err.message)
+    console.error(`${c.red}[FAIL] Failed to connect to OmniOps Engine at ${API_BASE}:${c.reset}`, err.message)
     console.log(`${c.yellow}Ensure 'npm run dev' or backend server is running on port 8000.${c.reset}`)
   }
 }
@@ -106,16 +110,16 @@ async function runDoctor() {
   const p5432 = await checkPort(5432)
   const p6379 = await checkPort(6379)
 
-  console.log(`  ${p8000 ? c.green + '✔' : c.red + '✖'} Port 8000 (OmniOps Engine): ${p8000 ? 'ONLINE' : 'OFFLINE'}${c.reset}`)
-  console.log(`  ${p5173 ? c.green + '✔' : c.yellow + '○'} Port 5173 (React Dashboard): ${p5173 ? 'ONLINE' : 'NOT RUNNING'}${c.reset}`)
-  console.log(`  ${p5432 ? c.green + '✔' : c.dim + '○'} Port 5432 (PostgreSQL):     ${p5432 ? 'LISTENING' : 'NOT DETECTED'}${c.reset}`)
-  console.log(`  ${p6379 ? c.green + '✔' : c.dim + '○'} Port 6379 (Redis Cache):    ${p6379 ? 'LISTENING' : 'NOT DETECTED'}${c.reset}`)
+  console.log(`  ${p8000 ? c.green + '[OK]' : c.red + '[FAIL]'} Port 8000 (OmniOps Engine): ${p8000 ? 'ONLINE' : 'OFFLINE'}${c.reset}`)
+  console.log(`  ${p5173 ? c.green + '[OK]' : c.yellow + '[--]'} Port 5173 (React Dashboard): ${p5173 ? 'ONLINE' : 'NOT RUNNING'}${c.reset}`)
+  console.log(`  ${p5432 ? c.green + '[OK]' : c.dim + '[--]'} Port 5432 (PostgreSQL):     ${p5432 ? 'LISTENING' : 'NOT DETECTED'}${c.reset}`)
+  console.log(`  ${p6379 ? c.green + '[OK]' : c.dim + '[--]'} Port 6379 (Redis Cache):    ${p6379 ? 'LISTENING' : 'NOT DETECTED'}${c.reset}`)
 
   if (memUsedPercent > 90 || loads[0] > cpus * 2) {
-    console.log(`\n${c.bgYellow} ⚠️ HOST UNDER HIGH PRESSURE — Auto-triggering Swarm Triage... ${c.reset}`)
+    console.log(`\n${c.bgYellow} [WARN] HOST UNDER HIGH PRESSURE — Auto-triggering Swarm Triage... ${c.reset}`)
     await triageIncident(`Host resource exhaustion: Memory at ${memUsedPercent}%, Load average ${loads[0]} on ${cpus} cores`, 'HIGH')
   } else {
-    console.log(`\n${c.green}✔ Host vitals within normal operating thresholds.${c.reset}\n`)
+    console.log(`\n${c.green}[OK] Host vitals within normal operating thresholds.${c.reset}\n`)
   }
 }
 
@@ -191,15 +195,14 @@ async function triageIncident(query, priority = 'HIGH') {
     }
 
     const { result } = await res.json()
-    const elapsed = Date.now() - startTime
 
     // 1. Display Clean 4-Agent Trajectory Card
-    console.log(`\n${c.cyan}${c.bold}┌── 🤖 4-Agent Autonomous Swarm Trajectory ──────────────────────────────┐${c.reset}`)
+    console.log(`\n${c.cyan}${c.bold}┌── [4-Agent Autonomous Swarm Trajectory] ──────────────────────────┐${c.reset}`)
     result.logs.forEach((log) => {
       const stepBadge = `Step ${log.stepNumber}: ${log.agentName}`
       const statusIcon = log.agentName.includes('Verification') && result.status === 'AWAITING_APPROVAL'
-        ? `${c.yellow}🛑${c.reset}`
-        : `${c.green}✔${c.reset}`
+        ? `${c.yellow}[HALT]${c.reset}`
+        : `${c.green}[OK]${c.reset}`
       console.log(`${c.cyan}│${c.reset}  ${statusIcon} ${c.bold}${stepBadge.padEnd(28)}${c.reset} ${c.dim}• ${log.action.slice(0, 40)}...${c.reset}`)
 
       if (log.stepNumber === 2 && result.matchedRunbookTitle) {
@@ -213,12 +216,12 @@ async function triageIncident(query, priority = 'HIGH') {
     console.log(`${c.cyan}└───${'─'.repeat(68)}┘${c.reset}\n`)
 
     // 2. Render Formatted Remediation Playbook
-    console.log(`${c.bold}${c.green}=== 📋 Synthesized Remediation Plan ===${c.reset}`)
+    console.log(`${c.bold}${c.green}=== [Synthesized Remediation Plan] ===${c.reset}`)
     console.log(renderTerminalMarkdown(result.finalResolution))
 
     // 3. Execution Summary Box
     console.log(`\n${c.dim}────────────────────────────────────────────────────────────────────────${c.reset}`)
-    console.log(`${c.bold}Status:${c.reset}          ${result.status === 'AWAITING_APPROVAL' ? c.bgYellow + ' 🛑 AWAITING OPERATOR APPROVAL ' + c.reset : c.bgGreen + ' ✔ RESOLVED ' + c.reset}`)
+    console.log(`${c.bold}Status:${c.reset}          ${result.status === 'AWAITING_APPROVAL' ? c.bgYellow + ' [HALT: AWAITING OPERATOR APPROVAL] ' + c.reset : c.bgGreen + ' [OK: RESOLVED] ' + c.reset}`)
     console.log(`${c.bold}Execution Time:${c.reset}  ${result.executionDurationMs}ms (Swarm Turnaround)`)
     console.log(`${c.bold}Incident ID:${c.reset}     ${c.cyan}${result.incidentId}${c.reset}`)
 
@@ -227,13 +230,13 @@ async function triageIncident(query, priority = 'HIGH') {
     }
 
     if (result.status === 'AWAITING_APPROVAL') {
-      console.log(`\n${c.yellow}${c.bold}👉 To authorize and sign off this execution:${c.reset}`)
+      console.log(`\n${c.yellow}${c.bold}--> To authorize and sign off this execution:${c.reset}`)
       console.log(`   ${c.bold}omniops approve ${result.incidentId}${c.reset}\n`)
     } else {
-      console.log(`\n${c.bgGreen} ✔ REMEDIATION COMPLETED & COMMITTED TO SQLITE ${c.reset}\n`)
+      console.log(`\n${c.bgGreen} [OK: REMEDIATION COMPLETED & COMMITTED TO SQLITE] ${c.reset}\n`)
     }
   } catch (err) {
-    console.error(`\n${c.red}✖ Swarm execution failed:${c.reset}`, err.message)
+    console.error(`\n${c.red}[FAIL] Swarm execution failed:${c.reset}`, err.message)
     console.log(`${c.yellow}Check if OmniOps Engine is running at ${API_BASE}.${c.reset}`)
   }
 }
@@ -255,12 +258,12 @@ async function approveIncident(incidentId) {
     }
 
     const data = await res.json()
-    console.log(`\n${c.green}${c.bold}✔ Incident Authorized & Resolved!${c.reset}`)
+    console.log(`\n${c.green}${c.bold}[OK] Incident Authorized & Resolved!${c.reset}`)
     console.log(`${c.dim}Incident ID:${c.reset} ${data.incident.id}`)
     console.log(`${c.dim}Updated Status:${c.reset} ${data.incident.status}`)
     console.log(`${c.dim}Title:${c.reset} ${data.incident.title}\n`)
   } catch (err) {
-    console.error(`\n${c.red}✖ Approval failed:${c.reset}`, err.message)
+    console.error(`\n${c.red}[FAIL] Approval failed:${c.reset}`, err.message)
   }
 }
 
@@ -268,7 +271,7 @@ async function main() {
   const stdinData = await readStdin()
   const [,, command, ...args] = process.argv
 
-  // Case 1: Input was piped via stdin (e.g. `cat error.log | 16bits` or `npm test | 16bits`)
+  // Case 1: Input was piped via stdin (e.g. `cat error.log | omniops` or `npm test | omniops`)
   if (stdinData) {
     const priority = (command && command.match(/^(CRITICAL|HIGH|MEDIUM|LOW)$/i)) 
       ? command 

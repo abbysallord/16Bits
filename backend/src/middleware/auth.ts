@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || '16bits-hackathon-super-secret-key-2026'
+const getSecret = () => process.env.JWT_SECRET || '16bits-hackathon-super-secret-key-2026'
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -13,7 +13,7 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export function generateToken(payload: { id: string; email: string; name: string; role: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+  return jwt.sign(payload, getSecret(), { expiresIn: '7d' })
 }
 
 export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
@@ -25,7 +25,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 
   const token = authHeader.split(' ')[1]
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getSecret()) as {
       id: string
       email: string
       name: string

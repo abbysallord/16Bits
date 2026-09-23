@@ -4,6 +4,7 @@ import { RunTree } from 'langsmith'
 import { db } from '../db/database.js'
 import { aiService } from './aiService.js'
 import { runbookService } from './runbookService.js'
+import { guardrailService } from './guardrailService.js'
 
 export interface AgentStepLog {
   agentName: string
@@ -54,6 +55,11 @@ export class SwarmService {
     const startTime = Date.now()
     const logs: AgentStepLog[] = []
 
+    // 0. Active Input Guardrail: PII/Secret Redaction & Prompt Injection Sanitization
+    const sanitized = guardrailService.sanitizeInput(title, description)
+    const effectiveTitle = sanitized.title
+    const effectiveDesc = sanitized.description
+
     // 1. Initialize LangSmith Trace Tree for 100% Observability
     const hasLangSmith = Boolean(process.env.LANGSMITH_API_KEY)
     let runTree: RunTree | null = null
@@ -61,9 +67,19 @@ export class SwarmService {
     if (hasLangSmith) {
       try {
         runTree = new RunTree({
-          name: '16Bits OmniOps Consensus Swarm',
+          name: `16Bits OmniOps Swarm: ${effectiveTitle}`,
           run_type: 'chain',
-          inputs: { incidentId, title, description, priority, category },
+          inputs: {
+            incidentId,
+            title: effectiveTitle,
+            description: effectiveDesc,
+            priority,
+            category,
+            sanitizationMeta: {
+              redactions: sanitized.redactionsCount,
+              injectionsNeutralized: sanitized.injectionsNeutralized
+            }
+          },
           project_name: process.env.LANGSMITH_PROJECT || '16bits-omniops'
         })
         await runTree.postRun()
@@ -121,14 +137,25 @@ export class SwarmService {
     // Update status to ANALYZING in DB
     db.prepare(`UPDATE incidents SET status = 'ANALYZING', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(incidentId)
 
+    // Log Active Input Guardrail if secrets redacted or injections neutralized
+    if (sanitized.redactionsCount > 0 || sanitized.injectionsNeutralized > 0) {
+      await recordStep(
+        'Input Guardrail Gate',
+        0,
+        `Sanitized ${sanitized.redactionsCount} confidential secrets/PII markers and neutralized ${sanitized.injectionsNeutralized} prompt injection vector(s). Safe payload forwarded to SRE swarm.`,
+        'Active Input Boundary Guardrail Verification',
+        { redactions: sanitized.redactionsCount, injectionsNeutralized: sanitized.injectionsNeutralized }
+      )
+    }
+
     // ==========================================
     // AGENT 1: PLANNER AGENT
     // ==========================================
     const planPrompt = `
 You are the Lead Planning Agent in an autonomous enterprise operations swarm.
 Incident Details:
-- Title: ${title}
-- Description: ${description}
+- Title: ${effectiveTitle}
+- Description: ${effectiveDesc}
 - Priority: ${priority}
 - Category: ${category}
 
@@ -160,7 +187,7 @@ Be concise, technical, and objective. Maximum 140 words.
       systemLoad: os.loadavg().map(n => Number(n.toFixed(2)))
     }
 
-    const matchedRunbook = runbookService.findBestRunbook(title + ' ' + description)
+    const matchedRunbook = runbookService.findBestRunbook(effectiveTitle + ' ' + effectiveDesc)
     const slaPolicy = SlaPolicyMatrix.getPolicy(priority)
 
     const toolPrompt = `
@@ -172,7 +199,7 @@ You retrieved:
 - Runbook Procedures:
 ${matchedRunbook?.content.slice(0, 500)}
 
-Incident: "${title}" - "${description}"
+Incident: "${effectiveTitle}" - "${effectiveDesc}"
 
 Synthesize the failure mechanism based on the telemetry and the matching SOP runbook. Maximum 120 words.
 `
@@ -216,7 +243,7 @@ Return an explicit verdict: [CONDITIONAL APPROVAL: OPERATOR AUTHORIZATION REQUIR
     // ==========================================
     const synthPrompt = `
 You are the Synthesizer & Dispatcher Agent.
-Synthesize the final resolution for: "${title}".
+Synthesize the final resolution for: "${effectiveTitle}".
 Inputs:
 - Priority: ${priority}
 - Telemetry & Root Cause: ${toolThought}
@@ -231,9 +258,17 @@ Produce a structured markdown resolution containing:
 
 Keep it crisp, professional, and ready for immediate deployment.
 `
-    const finalResolution = await aiService.complete(synthPrompt, "You are the chief operations synthesizer and communications dispatcher.")
+    const rawResolution = await aiService.complete(synthPrompt, "You are the chief operations synthesizer and communications dispatcher.")
     
-    const requiresApproval = priority === 'CRITICAL' || priority === 'HIGH'
+    // Enterprise Output Guardrail: Intercept destructive commands and enforce zero-emojis
+    const outputAudit = guardrailService.auditOutput(rawResolution)
+    let finalResolution = outputAudit.cleanedText
+
+    let requiresApproval = priority === 'CRITICAL' || priority === 'HIGH' || outputAudit.isDestructive
+    if (outputAudit.isDestructive) {
+      finalResolution += `\n\n> [SAFETY GATE OVERRIDE]: Detected high-risk operations: ${outputAudit.flaggedCommands.join(', ')}. Action quarantined behind mandatory Human Operator signature.`
+    }
+
     const finalStatus = requiresApproval ? 'AWAITING_APPROVAL' : 'RESOLVED'
 
     await recordStep(

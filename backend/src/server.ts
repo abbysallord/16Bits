@@ -1,14 +1,13 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { db } from './db/database.js'
 import { authRouter } from './routes/authRoutes.js'
 import { incidentRouter } from './routes/incidentRoutes.js'
 import { agentRouter } from './routes/agentRoutes.js'
-
-dotenv.config()
+import { aiService } from './services/aiService.js'
 
 const app = express()
 const PORT = process.env.PORT || 8000
@@ -22,12 +21,16 @@ app.use(express.json())
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const aiInfo = aiService.getProviderInfo()
   res.json({
     status: 'ok',
     project: '16Bits OmniOps Backend',
     version: '1.0.0',
     database: 'SQLite Active',
-    ai_configured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY)
+    ai_configured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY),
+    ai_provider: aiInfo.activeProvider,
+    ai_model: aiInfo.model,
+    is_mock: aiInfo.isMock
   })
 })
 

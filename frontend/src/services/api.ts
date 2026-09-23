@@ -4,6 +4,9 @@ export interface HealthStatus {
   version: string
   database: string
   ai_configured: boolean
+  ai_provider?: string
+  ai_model?: string
+  is_mock?: boolean
 }
 
 export interface User {
@@ -19,7 +22,7 @@ export interface Incident {
   description: string
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   category: string
-  status: 'PENDING' | 'ANALYZING' | 'RESOLVED' | 'FAILED'
+  status: 'PENDING' | 'ANALYZING' | 'AWAITING_APPROVAL' | 'RESOLVED' | 'FAILED'
   resolution?: string | null
   created_at: string
   updated_at: string
@@ -50,6 +53,40 @@ export interface SwarmResult {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+// Auth session management
+export function getAuthToken(): string | null {
+  return localStorage.getItem('omniops_token')
+}
+
+export function getCurrentUser(): User | null {
+  const data = localStorage.getItem('omniops_user')
+  if (!data) return null
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
+
+export function setAuthSession(token: string, user: User): void {
+  localStorage.setItem('omniops_token', token)
+  localStorage.setItem('omniops_user', JSON.stringify(user))
+}
+
+export function clearAuthSession(): void {
+  localStorage.removeItem('omniops_token')
+  localStorage.removeItem('omniops_user')
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 export async function checkBackendHealth(): Promise<HealthStatus> {
   const res = await fetch(`${API_BASE_URL}/api/health`)
   if (!res.ok) throw new Error('Backend health check failed')
@@ -66,7 +103,9 @@ export async function loginUser(email: string, password: string): Promise<{ toke
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || 'Login failed')
   }
-  return res.json()
+  const data = await res.json()
+  setAuthSession(data.token, data.user)
+  return data
 }
 
 export async function fetchIncidents(): Promise<Incident[]> {
@@ -91,7 +130,7 @@ export async function runSwarm(payload: {
 }): Promise<{ message: string; result: SwarmResult }> {
   const res = await fetch(`${API_BASE_URL}/api/agents/execute`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload)
   })
   if (!res.ok) {
@@ -116,7 +155,7 @@ export async function streamSwarm(
   try {
     const res = await fetch(`${API_BASE_URL}/api/agents/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     })
 
@@ -168,11 +207,14 @@ export async function streamSwarm(
   }
 }
 
-export async function approveIncident(incidentId: string, approvedBy: string = 'Lead Operator'): Promise<void> {
+export async function approveIncident(incidentId: string, approvedBy?: string): Promise<void> {
+  const currentUser = getCurrentUser()
+  const operatorName = approvedBy || (currentUser ? `${currentUser.name} (${currentUser.email})` : 'Authorized Operator')
+
   const res = await fetch(`${API_BASE_URL}/api/agents/approve`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ incidentId, approvedBy })
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ incidentId, approvedBy: operatorName })
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -191,3 +233,16 @@ export async function fetchRunbooks(): Promise<Array<{ filename: string; title: 
   }
 }
 
+export async function submitContact(payload: {
+  company: string
+  email: string
+  deploymentType: string
+  message: string
+}): Promise<{ success: boolean; message: string }> {
+  // Simulates enterprise webhook submission with SLA confirmation
+  await new Promise(r => setTimeout(r, 600))
+  return {
+    success: true,
+    message: `Inquiry registered for ${payload.company}. OmniOps SRE solutions team will reach out to ${payload.email} within 1 business hour.`
+  }
+}
