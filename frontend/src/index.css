@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  }
+
+  .font-arcade {
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  .font-mono-code {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Neobrutalist & Retro styling utilities */
+.neo-border {
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.neo-border-emerald {
+  border: 2px solid #10b981;
+  box-shadow: 4px 4px 0px rgba(16, 185, 129, 0.4);
+}
+
+.neo-border-dark {
+  border: 2px solid #262626;
+  box-shadow: 4px 4px 0px #171717;
+}
+
+/* Subtle modern scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}
