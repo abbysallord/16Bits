@@ -18,6 +18,14 @@ export interface Runbook {
   title: string
   content: string
   source?: string
+  // Internal: database key and owning team (null for built-ins shared by every team)
+  key?: string
+  orgId?: string | null
+}
+
+// Uploads are keyed per team so two teams can both have "db-failover.md"
+function storageKey(orgId: string, filename: string): string {
+  return orgId === 'demo' ? filename : `${orgId}/${filename}`
 }
 
 export interface RunbookMatch {
@@ -208,10 +216,17 @@ export class RunbookService {
   }
 
   private async reload(): Promise<void> {
-    const rows = await db.all<{ filename: string; title: string; content: string; source: string; embedding: string | null; embedding_model: string | null }>(
-      'SELECT filename, title, content, source, embedding, embedding_model FROM runbooks ORDER BY filename'
+    const rows = await db.all<{ filename: string; title: string; content: string; source: string; org_id: string | null; embedding: string | null; embedding_model: string | null }>(
+      'SELECT filename, title, content, source, org_id, embedding, embedding_model FROM runbooks ORDER BY filename'
     )
-    this.cache = rows.map((r) => ({ filename: r.filename, title: r.title, content: r.content, source: r.source }))
+    this.cache = rows.map((r) => ({
+      filename: r.filename.includes('/') ? r.filename.slice(r.filename.indexOf('/') + 1) : r.filename,
+      key: r.filename,
+      title: r.title,
+      content: r.content,
+      source: r.source,
+      orgId: r.source === 'builtin' ? null : r.org_id,
+    }))
     this.embeddings.clear()
     for (const r of rows) {
       if (r.embedding && r.embedding_model === this.embedder.model) {
@@ -227,7 +242,7 @@ export class RunbookService {
   private async indexMissingEmbeddings(): Promise<void> {
     if (!this.embedder.enabled || !this.cache) return
     for (const rb of this.cache) {
-      if (this.embeddings.has(rb.filename)) continue
+      if (this.embeddings.has(rb.key || rb.filename)) continue
       await this.embedAndStore(rb)
     }
   }
@@ -235,8 +250,9 @@ export class RunbookService {
   private async embedAndStore(rb: Runbook): Promise<void> {
     const vec = await this.embedder.embed(rb.content, 'RETRIEVAL_DOCUMENT', rb.title)
     if (!vec) return
-    this.embeddings.set(rb.filename, vec)
-    await db.run('UPDATE runbooks SET embedding = ?, embedding_model = ? WHERE filename = ?', [JSON.stringify(vec), this.embedder.model, rb.filename])
+    const key = rb.key || rb.filename
+    this.embeddings.set(key, vec)
+    await db.run('UPDATE runbooks SET embedding = ?, embedding_model = ? WHERE filename = ?', [JSON.stringify(vec), this.embedder.model, key])
   }
 
   private methodLabel(): string {
@@ -250,36 +266,47 @@ export class RunbookService {
     return !aiService.isMockMode() && (process.env.RUNBOOK_RERANK || 'on').toLowerCase() !== 'off'
   }
 
-  public async getAvailableRunbooks(): Promise<Runbook[]> {
+  // Built-in runbooks plus the team's own uploads. orgId null = built-ins only.
+  public async getAvailableRunbooks(orgId: string | null = null): Promise<Runbook[]> {
     if (!this.cache) await this.reload()
-    return this.cache || []
+    return (this.cache || [])
+      .filter((r) => r.orgId === null || r.orgId === undefined || (orgId !== null && r.orgId === orgId))
+      .map(({ key: _key, orgId: _org, ...pub }) => pub)
   }
 
-  public async saveRunbook(filename: string, content: string): Promise<Runbook> {
+  private async visibleWithKeys(orgId: string | null): Promise<Runbook[]> {
+    if (!this.cache) await this.reload()
+    return (this.cache || []).filter((r) => r.orgId === null || r.orgId === undefined || (orgId !== null && r.orgId === orgId))
+  }
+
+  public async saveRunbook(filename: string, content: string, orgId: string): Promise<Runbook> {
     if (Buffer.byteLength(content, 'utf-8') > MAX_RUNBOOK_BYTES) throw new Error('Runbook is too large (100 KB max)')
     const clean = safeFilename(filename)
+    const key = storageKey(orgId, clean)
     const title = titleOf(content, clean)
-    const existing = await db.get('SELECT filename FROM runbooks WHERE filename = ?', [clean])
+    const existing = await db.get<{ source: string }>('SELECT source FROM runbooks WHERE filename = ?', [key])
+    if (existing?.source === 'builtin') throw new Error(`${clean} is a built-in runbook; upload it under a different filename`)
     if (existing) {
       await db.run(
-        "UPDATE runbooks SET title = ?, content = ?, source = 'upload', embedding = NULL, embedding_model = NULL, updated_at = CURRENT_TIMESTAMP WHERE filename = ?",
-        [title, content, clean]
+        'UPDATE runbooks SET title = ?, content = ?, embedding = NULL, embedding_model = NULL, updated_at = CURRENT_TIMESTAMP WHERE filename = ?',
+        [title, content, key]
       )
     } else {
-      await db.run("INSERT INTO runbooks (filename, title, content, source) VALUES (?, ?, ?, 'upload')", [clean, title, content])
+      await db.run("INSERT INTO runbooks (filename, title, content, source, org_id) VALUES (?, ?, ?, 'upload', ?)", [key, title, content, orgId])
     }
     await this.reload()
-    const saved: Runbook = { filename: clean, title, content, source: 'upload' }
+    const saved: Runbook = { filename: clean, title, content, source: 'upload', key, orgId }
     await this.embedAndStore(saved)
-    return saved
+    return { filename: clean, title, content, source: 'upload' }
   }
 
   // Team uploads can be deleted; built-in runbooks come back on the next restart, so they are protected
-  public async deleteRunbook(filename: string): Promise<'deleted' | 'not_found' | 'builtin'> {
-    const row = await db.get<{ source: string }>('SELECT source FROM runbooks WHERE filename = ?', [filename])
-    if (!row) return 'not_found'
-    if (row.source === 'builtin') return 'builtin'
-    await db.run('DELETE FROM runbooks WHERE filename = ?', [filename])
+  public async deleteRunbook(filename: string, orgId: string): Promise<'deleted' | 'not_found' | 'builtin'> {
+    const builtin = await db.get<{ source: string }>("SELECT source FROM runbooks WHERE filename = ? AND source = 'builtin'", [filename])
+    const key = storageKey(orgId, filename)
+    const row = await db.get<{ source: string }>("SELECT source FROM runbooks WHERE filename = ? AND org_id = ? AND source = 'upload'", [key, orgId])
+    if (!row) return builtin ? 'builtin' : 'not_found'
+    await db.run('DELETE FROM runbooks WHERE filename = ?', [key])
     await this.reload()
     return 'deleted'
   }
@@ -287,7 +314,7 @@ export class RunbookService {
   private bm25(queryTokens: string[], runbooks: Runbook[]): Map<string, { score: number; snippet: string }> {
     const docs: Array<{ filename: string; title: string; text: string; fullContent: string; tokens: string[] }> = []
     for (const rb of runbooks) {
-      for (const sec of sections(rb)) docs.push({ filename: rb.filename, title: rb.title, text: sec, fullContent: rb.content, tokens: tokenize(`${rb.title} ${sec}`) })
+      for (const sec of sections(rb)) docs.push({ filename: rb.key || rb.filename, title: rb.title, text: sec, fullContent: rb.content, tokens: tokenize(`${rb.title} ${sec}`) })
     }
     const N = docs.length || 1
     const avgLen = docs.reduce((n, d) => n + d.tokens.length, 0) / N || 1
@@ -321,8 +348,8 @@ export class RunbookService {
     return best
   }
 
-  public async search(query: string, limit = 5, opts: { rerank?: boolean } = {}): Promise<RunbookSearchResult> {
-    const runbooks = await this.getAvailableRunbooks()
+  public async search(query: string, limit = 5, opts: { rerank?: boolean; orgId?: string | null } = {}): Promise<RunbookSearchResult> {
+    const runbooks = await this.visibleWithKeys(opts.orgId ?? null)
     const tokens = tokenize(query)
     if (!runbooks.length || !query.trim()) return { query, method: this.methodLabel(), matches: [], chosen: null }
 
@@ -333,8 +360,8 @@ export class RunbookService {
       if (qv) {
         semantic = new Map()
         for (const rb of runbooks) {
-          const v = this.embeddings.get(rb.filename)
-          if (v) semantic.set(rb.filename, cosine(qv, v))
+          const v = this.embeddings.get(rb.key || rb.filename)
+          if (v) semantic.set(rb.key || rb.filename, cosine(qv, v))
         }
       }
     }
@@ -355,7 +382,7 @@ export class RunbookService {
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
       .map(([filename, score]) => ({
-        runbook: runbooks.find((r) => r.filename === filename)!,
+        runbook: runbooks.find((r) => (r.key || r.filename) === filename)!,
         score: Number(score.toFixed(4)),
         snippet: lexical.get(filename)?.snippet || '',
         signals: {
@@ -396,8 +423,8 @@ export class RunbookService {
   }
 
   // Best runbook for an incident, or null when nothing relevant matches
-  public async findBestRunbook(query: string): Promise<Runbook | null> {
-    const r = await this.search(query, 5)
+  public async findBestRunbook(query: string, orgId: string | null = null): Promise<Runbook | null> {
+    const r = await this.search(query, 5, { orgId })
     return r.chosen?.runbook || null
   }
 }

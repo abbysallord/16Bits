@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import Groq from 'groq-sdk'
+import { currentOrg } from './orgService.js'
 
 type Provider = 'groq' | 'gemini'
 
@@ -16,6 +17,8 @@ const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b'
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
 // mixtral-8x7b-32768 and gemma2-9b-it are retired on Groq (https://console.groq.com/docs/deprecations)
 const GROQ_FALLBACK_MODELS = ['openai/gpt-oss-20b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+// groq-sdk retries 429/5xx itself, honoring Groq's retry-after header, with exponential backoff
+const GROQ_MAX_RETRIES = Number(process.env.GROQ_MAX_RETRIES ?? 2)
 const MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_TOKENS || 2048)
 
 // Some open reasoning models emit <think>...</think> blocks; never show those to users
@@ -35,7 +38,7 @@ class AIService {
     if (geminiKey) this.geminiClient = new GoogleGenerativeAI(geminiKey)
 
     const groqKey = process.env.GROQ_API_KEY
-    if (groqKey && !groqKey.startsWith('gsk_your_')) this.groqClient = new Groq({ apiKey: groqKey })
+    if (groqKey && !groqKey.startsWith('gsk_your_')) this.groqClient = new Groq({ apiKey: groqKey, maxRetries: GROQ_MAX_RETRIES })
 
     // GROQ_MODEL wins; DEFAULT_MODEL kept for backward compatibility with older .env files
     this.groqModel = process.env.GROQ_MODEL || process.env.DEFAULT_MODEL || DEFAULT_GROQ_MODEL
@@ -46,12 +49,27 @@ class AIService {
     this.order = primary === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq']
   }
 
+  // Teams can bring their own Groq key (Settings) so their runs use their own quota
+  private teamGroqClients = new Map<string, Groq>()
+
+  private groqClientForRequest(): Groq | null {
+    const key = currentOrg()?.groqApiKey
+    if (!key) return this.groqClient
+    let client = this.teamGroqClients.get(key)
+    if (!client) {
+      client = new Groq({ apiKey: key, maxRetries: GROQ_MAX_RETRIES })
+      if (this.teamGroqClients.size > 200) this.teamGroqClients.clear()
+      this.teamGroqClients.set(key, client)
+    }
+    return client
+  }
+
   private isAvailable(p: Provider): boolean {
-    return p === 'groq' ? Boolean(this.groqClient) : Boolean(this.geminiClient)
+    return p === 'groq' ? Boolean(this.groqClientForRequest()) : Boolean(this.geminiClient)
   }
 
   public isMockMode(): boolean {
-    return !this.groqClient && !this.geminiClient
+    return !this.groqClientForRequest() && !this.geminiClient
   }
 
   // Shape used by /api/health (ai_provider, ai_model, is_mock)
@@ -77,7 +95,7 @@ class AIService {
     let lastError: unknown = null
     for (const model of models) {
       try {
-        const res = await this.groqClient!.chat.completions.create({
+        const res = await this.groqClientForRequest()!.chat.completions.create({
           model,
           messages,
           temperature: 0.2,

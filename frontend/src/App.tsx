@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import DocsPage from './pages/DocsPage'
 import IncidentPage from './pages/IncidentPage'
+import SettingsPage from './pages/SettingsPage'
 import {
   Zap,
   Activity,
@@ -129,14 +130,14 @@ function ConsoleView() {
   const [isApproving, setIsApproving] = useState(false)
   const [approvedLocally, setApprovedLocally] = useState(false)
   const [approvedBy, setApprovedBy] = useState<string | null>(null)
-  const { ensureToken, logout } = useAuth()
+  const { ensureToken, logout, user } = useAuth()
 
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     checkBackendHealth().then(setHealth).catch(() => setHealth(null))
     loadIncidents()
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -852,6 +853,7 @@ export default function App() {
     <Routes>
       <Route path="/docs" element={<DocsPage />} />
       <Route path="/incidents/:id" element={<IncidentPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
       <Route path="*" element={<ConsoleView />} />
     </Routes>
   )

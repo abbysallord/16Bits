@@ -31,7 +31,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function IncidentPage() {
   const { id = '' } = useParams()
-  const { ensureToken, logout } = useAuth()
+  const { ensureToken, logout, user } = useAuth()
   const [incident, setIncident] = useState<Incident | null>(null)
   const [logs, setLogs] = useState<LogRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +47,9 @@ export default function IncidentPage() {
     } catch (err: any) {
       setError(err.message || 'Could not load incident')
     }
-  }, [id])
+    // Re-load after sign-in/out: incidents are visible only to their own team
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.id])
 
   useEffect(() => {
     load()
@@ -127,6 +129,11 @@ export default function IncidentPage() {
         {error && (
           <div className="nes-container mt-4" style={{ backgroundColor: '#fff' }}>
             <p className="font-code" style={{ fontSize: 12, color: '#e76e55' }}>[ERROR] {error}</p>
+            {!user && (
+              <button type="button" className="nes-btn is-success nes-btn-xs font-arcade mt-2" style={{ fontSize: 9 }} onClick={() => ensureToken()}>
+                SIGN IN TO VIEW
+              </button>
+            )}
           </div>
         )}
 

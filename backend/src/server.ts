@@ -7,7 +7,9 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { db, initDatabase } from './db/database.js'
 import { runbookService } from './services/runbookService.js'
-import { demoAccountEnabled } from './config/demo.js'
+import { demoAccountEnabled, DEMO_EMAIL } from './config/demo.js'
+import { DEMO_ORG_ID, initOrgs } from './services/orgService.js'
+import { orgRouter } from './routes/orgRoutes.js'
 import { rateLimitEnabled } from './middleware/rateLimit.js'
 import { authRouter } from './routes/authRoutes.js'
 import { incidentRouter } from './routes/incidentRoutes.js'
@@ -62,14 +64,17 @@ app.get('/api/health', (req, res) => {
 
 // Mount API routes
 app.use('/api/auth', authRouter)
+app.use('/api/org', orgRouter)
 app.use('/api/incidents', incidentRouter)
 app.use('/api/agents', agentRouter)
 
 // Webhook aliases: /api/webhooks/alert(s) (auto-detect) and /api/webhooks/{alertmanager,pagerduty,datadog}
 app.use('/api/webhooks', (req, res, next) => {
-  const m = req.path.match(/^\/(alerts?|alertmanager|prometheus|pagerduty|datadog)\/?$/)
+  // Per-team URLs carry the team's secret ingest key: /api/webhooks/t/<ingest-key>/alertmanager
+  const m = req.path.match(/^\/(?:t\/([A-Za-z0-9_-]{16,64})\/)?(alerts?|alertmanager|prometheus|pagerduty|datadog)\/?$/)
   if (!m) return next()
-  const source = m[1].startsWith('alert') && m[1] !== 'alertmanager' ? '' : m[1]
+  ;(req as any).ingestKey = m[1] || null
+  const source = m[2].startsWith('alert') && m[2] !== 'alertmanager' ? '' : m[2]
   // Express 4 parses req.query once, so set the hint on the parsed object as well as the URL
   if (source) (req as any).query = { ...req.query, source }
   const qs = new URLSearchParams(req.query as Record<string, string>).toString()
@@ -91,14 +96,14 @@ async function seedDemoData() {
     const demoUserId = crypto.randomUUID()
 
     await db.run(`
-      INSERT INTO users (id, email, password_hash, name, role)
-      VALUES (?, ?, ?, ?, ?)
-    `, [demoUserId, 'admin@16bits.io', demoPasswordHash, 'Lead Operator', 'admin'])
+      INSERT INTO users (id, email, password_hash, name, role, org_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [demoUserId, 'admin@16bits.io', demoPasswordHash, 'Lead Operator', 'admin', DEMO_ORG_ID])
 
     const demoIncidentId = crypto.randomUUID()
     await db.run(`
-      INSERT INTO incidents (id, title, description, priority, category, status, user_id)
-      VALUES (?, ?, ?, ?, ?, 'PENDING', ?)
+      INSERT INTO incidents (id, title, description, priority, category, status, user_id, org_id)
+      VALUES (?, ?, ?, ?, ?, 'PENDING', ?, '${DEMO_ORG_ID}')
     `, [demoIncidentId,
       'Payment Webhook Ingestion Throttle on Stripe Gateway',
       'Production webhook consumer queue has accumulated 4,120 unacknowledged settlement events. Upstream rate limits returning HTTP 429 on settlement callbacks, risking SLA breach for Platinum Enterprise clients.',
@@ -130,6 +135,7 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
 })
 
 initDatabase()
+  .then(() => initOrgs(DEMO_EMAIL))
   .then(() => runbookService.init())
   .then(seedDemoData)
   .then(() => {

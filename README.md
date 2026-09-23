@@ -28,7 +28,7 @@ Instead of a single brittle prompt, **16Bits OmniOps** deploys a specialized 4-a
 1. **Planner Agent**: Parses messy logs, eliminates noise, and constructs an investigative Directed Acyclic Graph (DAG).
 2. **Investigator Agent**: Reads live host telemetry (`os.loadavg`, memory, process uptime), inspects codebase files via the AST call graph, and searches the runbook (SOP) library: BM25 keyword ranking with an ops synonym map, Gemini embeddings when `GEMINI_API_KEY` is set, and an LLM pick of the best of the top 3 (or "none applies").
 3. **Verifier Gate (Safety & SLA)**: Reviews the plan against SLA and safety constraints. The approval gate itself is deterministic code, not the LLM: any HIGH/CRITICAL incident, or any plan containing a destructive command pattern (`DROP TABLE`, `rm -rf`, `FLUSHALL`), is held as `AWAITING_APPROVAL` until a signed-in operator approves it. The Verifier LLM's verdict is advisory.
-4. **Synthesizer & Dispatcher Agent**: Writes the executive summary, numbered remediation playbook and stakeholder update, posts to Slack when `SLACK_WEBHOOK_URL` is set, and links the LangSmith trace when `LANGSMITH_API_KEY` is set.
+4. **Synthesizer & Dispatcher Agent**: Writes the executive summary, numbered remediation playbook and stakeholder update, posts to the team's own Slack channel (connected in Settings), and links the LangSmith trace when `LANGSMITH_API_KEY` is set.
 
 ---
 
@@ -133,7 +133,9 @@ npm run test:e2e   # 14 checks: health, auth, guardrails, execute, SSE stream, w
    - Optional: `CORS_ORIGINS` (comma-separated browser origins allowed to call the API; defaults to `https://16bits-omniops.vercel.app` plus localhost:5173/4173)
    - Optional: `AI_MAX_TOKENS` (max output tokens per agent call; default 2048)
    - Recommended for production: `WEBHOOK_SECRET` (alert webhook then requires it via `x-webhook-secret`, `Authorization: Bearer`, or `?token=`; see the Docs page for Alertmanager, PagerDuty and Datadog setup)
-   - Optional: `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL). Every triaged incident is posted with priority, status, matched runbook, a summary and a **Review & approve** button that opens `/incidents/<id>` on the web console; approvals are posted too
+   - Optional: `SLACK_WEBHOOK_URL` (Slack incoming-webhook URL for the **public demo team** only; every other team connects its own Slack in **Settings**). Every triaged incident is posted with priority, status, matched runbook, a summary and a **Review & approve** button that opens `/incidents/<id>` on the web console; approvals are posted too
+   - Optional: `PUBLIC_API_URL` (base URL shown in team alert URLs; defaults to the request host, e.g. `https://one6bits.onrender.com`)
+   - Optional: `SWARM_CONCURRENCY` (agent runs sent to the LLM at once, default 2; extra runs wait in a queue of up to `SWARM_MAX_QUEUE`, default 50) and `GROQ_MAX_RETRIES` (retries on Groq 429/5xx honoring `retry-after`, default 2)
    - Optional: `APP_URL` (web console URL used in Slack links; default `https://16bits-omniops.vercel.app`)
    - Optional: `LANGSMITH_API_KEY` (for distributed tracing)
    - Optional: `DEMO_ACCOUNT=off` disables the public demo login (`admin@16bits.io`): nothing is seeded, sign-in with that email is refused, and the web console hides the demo button. Default `on` so judges can sign in
@@ -143,7 +145,22 @@ npm run test:e2e   # 14 checks: health, auth, guardrails, execute, SSE stream, w
 
 ---
 
-## 7. Demo Credentials for Evaluators
+## 7. Teams (Multi-Tenancy)
+
+Every account belongs to one team. A team's incidents, uploaded runbooks, alert URLs and Slack posts are private to it; built-in runbooks are shared.
+
+- **Create a team:** CREATE ACCOUNT with a team name (or leave it empty). You become the team **admin**.
+- **Invite teammates:** Settings → INVITE TEAMMATES shows an invite code. Teammates paste it when creating an account (or in Settings → JOIN ANOTHER TEAM) and join as **operators**.
+- **Connect your own Slack:** Settings → SLACK. Paste a Slack incoming-webhook URL from your workspace (api.slack.com/apps → Incoming Webhooks) and click SEND TEST MESSAGE. Only `https://hooks.slack.com/services/...` URLs are accepted.
+- **Private alert URLs:** Settings → ALERT URLS lists your team's Alertmanager, PagerDuty, Datadog and generic URLs (`/api/webhooks/t/<secret-key>/<source>`). The key in the URL is the secret; ROTATE ALERT URLS issues a new one.
+- **Your own AI quota:** Settings → AI QUOTA takes an optional Groq API key so your team's runs use your own free quota instead of the shared server key.
+- **Public demo team:** the demo account, signed-out visitors, the legacy `/api/webhooks/<source>` URLs and the CLI without credentials all use the shared read-only demo team. With `DEMO_ACCOUNT=off` signed-out visitors see nothing.
+- **CLI:** set `OMNIOPS_TOKEN` (or `OMNIOPS_EMAIL` + `OMNIOPS_PASSWORD`) and `omniops` runs land in your team.
+- Existing accounts created before teams existed were each moved into their own team; use an invite code to join a teammate's.
+
+---
+
+## 8. Demo Credentials for Evaluators
 
 - **Email:** `admin@16bits.io`
 - **Password:** `admin123`
@@ -154,14 +171,21 @@ npm run test:e2e   # 14 checks: health, auth, guardrails, execute, SSE stream, w
 
 ---
 
-## 8. API Reference
+## 9. API Reference
 
 🔒 = requires `Authorization: Bearer <JWT>` from `POST /api/auth/login`.
 
 - `GET /api/health` — Backend status, SQLite state, active AI provider (`groq`, `gemini`, or `mock`) and model.
 - `POST /api/auth/login` — Authenticates an operator and returns a JWT.
-- `POST /api/auth/register` — Creates an operator account (role is always `operator`).
-- `GET /api/auth/me` 🔒 — Returns the signed-in operator.
+- `POST /api/auth/register` — Creates an account. With `teamName` (or nothing) it creates a new team and you are its admin; with `inviteCode` you join that team as an operator.
+- `GET /api/auth/me` 🔒 — Returns the signed-in operator and team.
+- `GET /api/org` 🔒 — Team settings: name, members, invite code, alert URLs, Slack status.
+- `PATCH /api/org` 🔒 admin — Update `name`, `slackWebhookUrl`, `groqApiKey` (empty string removes).
+- `POST /api/org/slack/test` 🔒 admin — Sends a test message to the team's Slack.
+- `POST /api/org/rotate-alert-key`, `POST /api/org/rotate-invite` 🔒 admin — Issue new alert URLs / invite code.
+- `POST /api/org/join` 🔒 — Join another team with `{inviteCode}`; returns a new token.
+- `POST /api/webhooks/t/<key>/{alertmanager,pagerduty,datadog,alert}` — Team alert intake (key from Settings).
+- Incident, run and runbook endpoints below are scoped to the caller's team (no token = public demo team).
 - `GET /api/incidents` — Lists incidents with resolution status.
 - `GET /api/incidents/:id` — Incident detail plus the full 4-agent step log.
 - `POST /api/incidents` 🔒 — Creates an incident without running the swarm.
@@ -176,14 +200,16 @@ npm run test:e2e   # 14 checks: health, auth, guardrails, execute, SSE stream, w
 
 ---
 
-## 9. Known Limitations
+## 10. Known Limitations
 
 - Approval records the decision; OmniOps proposes commands but never runs them against your infrastructure.
+- Teams have two roles (admin, operator). Team Slack webhooks and Groq keys are stored in the database as plain text; use a database you trust (e.g. Neon with restricted access).
+- Rate limits and the run queue live in memory on one instance.
 - Without a Gemini key, runbook search is keyword-based (BM25 + synonyms) plus the LLM pick; embeddings add true semantic matching.
 - Without `DATABASE_URL`, SQLite on Render's free tier resets on restart, including uploaded runbooks.
 - If every AI provider fails, the swarm returns a generic template answer.
 
 ---
 
-## 10. License
+## 11. License
 MIT License. Open source and built for high-reliability enterprise operations.

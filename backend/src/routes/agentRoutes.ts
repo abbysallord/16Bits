@@ -7,26 +7,30 @@ import { runAgentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
 import { normalizeAlert, webhookAuthorized } from '../services/alertIntake.js'
 import { notifyIncidentApproved } from '../services/slackService.js'
-import { AuthenticatedRequest, requireAuth, verifyToken } from '../middleware/auth.js'
+import { AuthenticatedRequest, requireAuth, resolveOrg } from '../middleware/auth.js'
+import { DEMO_ORG_ID, getOrgByIngestKey, runInOrg } from '../services/orgService.js'
+import { enqueueSwarm } from '../services/swarmQueue.js'
+import { demoAccountEnabled } from '../config/demo.js'
 import { approveLimiter, executeLimiter, webhookLimiter } from '../middleware/rateLimit.js'
 
 export const agentRouter = Router()
 
 // List available SOP runbooks
-agentRouter.get('/runbooks', async (req: Request, res: Response): Promise<void> => {
-  const runbooks = await runbookService.getAvailableRunbooks()
+agentRouter.get('/runbooks', resolveOrg, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const runbooks = await runbookService.getAvailableRunbooks(req.orgId ?? null)
   res.json({ count: runbooks.length, storage: 'database', runbooks })
 })
 
 // Search runbooks: /api/agents/runbooks/search?q=redis+oom (add &rerank=false to skip the LLM pick)
-agentRouter.get('/runbooks/search', async (req: Request, res: Response): Promise<void> => {
+agentRouter.get('/runbooks/search', resolveOrg, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const q = String(req.query.q || '').slice(0, 2000)
   if (!q.trim()) {
     res.status(400).json({ error: 'q is required' })
     return
   }
   const limit = Math.min(Math.max(Number(req.query.limit) || 5, 1), 10)
-  const result = await runbookService.search(q, limit, { rerank: req.query.rerank !== 'false' })
+  const orgId = req.orgId ?? null
+  const result = await (orgId ? runInOrg(orgId, () => runbookService.search(q, limit, { rerank: req.query.rerank !== 'false', orgId })) : runbookService.search(q, limit, { rerank: false, orgId: null }))
   res.json({
     query: result.query,
     method: result.method,
@@ -48,7 +52,7 @@ agentRouter.post('/runbooks', requireAuth, async (req: AuthenticatedRequest, res
       res.status(400).json({ error: 'filename and content must be strings' })
       return
     }
-    const saved = await runbookService.saveRunbook(filename, content)
+    const saved = await runbookService.saveRunbook(filename, content, req.orgId!)
     res.status(201).json({ message: 'Runbook saved to the database and indexed for search', runbook: saved })
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to save runbook' })
@@ -58,7 +62,7 @@ agentRouter.post('/runbooks', requireAuth, async (req: AuthenticatedRequest, res
 // Delete a team-uploaded runbook. Signed-in operators only; built-in runbooks cannot be deleted.
 agentRouter.delete('/runbooks/:filename', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const filename = String(req.params.filename)
-  const outcome = await runbookService.deleteRunbook(filename)
+  const outcome = await runbookService.deleteRunbook(filename, req.orgId!)
   if (outcome === 'not_found') {
     res.status(404).json({ error: 'Runbook not found' })
   } else if (outcome === 'builtin') {
@@ -72,7 +76,22 @@ agentRouter.delete('/runbooks/:filename', requireAuth, async (req: Authenticated
 // (auto-detected, or forced with ?source=alertmanager|pagerduty|datadog), plus a generic JSON shape.
 // If WEBHOOK_SECRET is set, send it as x-webhook-secret, Authorization: Bearer, or ?token=.
 agentRouter.post('/webhook/alert', webhookLimiter, async (req: Request, res: Response): Promise<void> => {
-  if (!webhookAuthorized(req)) {
+  // Team alert URLs (/api/webhooks/t/<ingest-key>/...) route into that team. The legacy shared URLs feed
+  // the public demo workspace and are protected by WEBHOOK_SECRET when it is set.
+  const ingestKey: string | null = (req as any).ingestKey || null
+  let orgId = DEMO_ORG_ID
+  if (ingestKey) {
+    const org = await getOrgByIngestKey(ingestKey)
+    if (!org) {
+      res.status(401).json({ error: 'Unknown or rotated team alert URL. Copy the current one from Settings.' })
+      return
+    }
+    orgId = org.id
+  } else if (!demoAccountEnabled()) {
+    // No public demo workspace: shared URLs would drop alerts where nobody can see them
+    res.status(404).json({ error: 'Shared alert URLs are disabled on this server. Use your team alert URL from Settings.' })
+    return
+  } else if (!webhookAuthorized(req)) {
     res.status(401).json({ error: 'Invalid or missing webhook secret (x-webhook-secret header, Bearer token, or ?token=)' })
     return
   }
@@ -88,8 +107,8 @@ agentRouter.post('/webhook/alert', webhookLimiter, async (req: Request, res: Res
   // alert that already has an open incident.
   if (alert.externalRef) {
     const open = await db.get<{ id: string; status: string }>(
-      `SELECT id, status FROM incidents WHERE external_ref = ? AND status NOT IN ('RESOLVED', 'FAILED') ORDER BY created_at DESC LIMIT 1`,
-      [alert.externalRef]
+      `SELECT id, status FROM incidents WHERE external_ref = ? AND org_id = ? AND status NOT IN ('RESOLVED', 'FAILED') ORDER BY created_at DESC LIMIT 1`,
+      [alert.externalRef, orgId]
     )
     if (open) {
       res.status(202).json({ message: 'Duplicate alert: incident already open', source: alert.source, incidentId: open.id, status: open.status, duplicate: true })
@@ -99,11 +118,11 @@ agentRouter.post('/webhook/alert', webhookLimiter, async (req: Request, res: Res
 
   const incidentId = crypto.randomUUID()
   await db.run(`
-    INSERT INTO incidents (id, title, description, priority, category, status, source, external_ref)
-    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)
-  `, [incidentId, alert.title, alert.description, alert.priority, alert.category, alert.source, alert.externalRef])
+    INSERT INTO incidents (id, title, description, priority, category, status, source, external_ref, org_id)
+    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)
+  `, [incidentId, alert.title, alert.description, alert.priority, alert.category, alert.source, alert.externalRef, orgId])
 
-  const run = () => swarmService.executeSwarm(incidentId, alert.title, alert.description, alert.priority, alert.category)
+  const run = () => enqueueSwarm(() => runInOrg(orgId, () => swarmService.executeSwarm(incidentId, alert.title, alert.description, alert.priority, alert.category)))
 
   // Monitoring tools expect a fast 2xx and retry on timeouts, so their payloads are processed in the
   // background. Generic/curl callers get the full result back (add ?async=1 to skip waiting).
@@ -150,7 +169,8 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
     return
   }
 
-  const existing = await db.get('SELECT status FROM incidents WHERE id = ?', [incidentId]) as { status: string } | undefined
+  // Scoped to the approver's team: another team's incident looks like it does not exist
+  const existing = await db.get('SELECT status FROM incidents WHERE id = ? AND org_id = ?', [incidentId, req.orgId]) as { status: string } | undefined
   if (!existing) {
     res.status(404).json({ error: 'Incident not found' })
     return
@@ -169,7 +189,7 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
       return
     }
     const updated = await db.get('SELECT * FROM incidents WHERE id = ?', [incidentId])
-    void notifyIncidentApproved({ incidentId, title: (updated as any)?.title || incidentId, approvedBy })
+    void runInOrg(req.orgId!, () => notifyIncidentApproved({ incidentId, title: (updated as any)?.title || incidentId, approvedBy }))
     res.json({
       message: `Remediation plan authorized by authenticated operator: ${approvedBy}. Status updated to RESOLVED.`,
       incident: updated,
@@ -180,28 +200,38 @@ agentRouter.post('/approve', approveLimiter, requireAuth, async (req: Authentica
   }
 })
 
+// Resolve (or create) the incident a console/CLI run works on, inside the caller's team.
+// Returns null when the incidentId belongs to another team or does not exist.
+async function prepareRun(req: AuthenticatedRequest): Promise<{ incidentId: string; orgId: string } | { error: string; status: number }> {
+  const orgId = req.orgId
+  if (!orgId) return { status: 401, error: 'Sign in to run the agents (the public demo workspace is disabled on this server)' }
+  const { title, description, priority, category } = req.body
+  let incidentId = req.body.incidentId
+  if (incidentId) {
+    const owned = await db.get('SELECT id FROM incidents WHERE id = ? AND org_id = ?', [incidentId, orgId])
+    if (!owned) return { status: 404, error: 'Incident not found' }
+  } else {
+    incidentId = crypto.randomUUID()
+    await db.run(`
+      INSERT INTO incidents (id, title, description, priority, category, status, user_id, org_id)
+      VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)
+    `, [incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow', req.user?.id || null, orgId])
+  }
+  return { incidentId, orgId }
+}
+
 // Synchronous Swarm Execution
-agentRouter.post('/execute', executeLimiter, validate(runAgentSchema), async (req: Request, res: Response): Promise<void> => {
+agentRouter.post('/execute', executeLimiter, resolveOrg, validate(runAgentSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const prep = await prepareRun(req)
+  if ('error' in prep) {
+    res.status(prep.status).json({ error: prep.error })
+    return
+  }
   try {
     const { title, description, priority, category } = req.body
-    let incidentId = req.body.incidentId
-
-    if (!incidentId) {
-      incidentId = crypto.randomUUID()
-      await db.run(`
-        INSERT INTO incidents (id, title, description, priority, category, status)
-        VALUES (?, ?, ?, ?, ?, 'PENDING')
-      `, [incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow'])
-    }
-
-    const result = await swarmService.executeSwarm(
-      incidentId,
-      title,
-      description,
-      priority || 'HIGH',
-      category || 'Enterprise Workflow'
+    const result = await enqueueSwarm(() =>
+      runInOrg(prep.orgId, () => swarmService.executeSwarm(prep.incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow'))
     )
-
     res.json({
       message: 'Agent Swarm completed execution successfully',
       result
@@ -213,7 +243,12 @@ agentRouter.post('/execute', executeLimiter, validate(runAgentSchema), async (re
 })
 
 // Real-Time Server-Sent Events (SSE) Streaming Execution
-agentRouter.post('/stream', executeLimiter, validate(runAgentSchema), async (req: Request, res: Response): Promise<void> => {
+agentRouter.post('/stream', executeLimiter, resolveOrg, validate(runAgentSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const prep = await prepareRun(req)
+  if ('error' in prep) {
+    res.status(prep.status).json({ error: prep.error })
+    return
+  }
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
@@ -221,27 +256,15 @@ agentRouter.post('/stream', executeLimiter, validate(runAgentSchema), async (req
 
   try {
     const { title, description, priority, category } = req.body
-    let incidentId = req.body.incidentId
-
-    if (!incidentId) {
-      incidentId = crypto.randomUUID()
-      await db.run(`
-        INSERT INTO incidents (id, title, description, priority, category, status)
-        VALUES (?, ?, ?, ?, ?, 'PENDING')
-      `, [incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow'])
-    }
-
+    const incidentId = prep.incidentId
     res.write(`data: ${JSON.stringify({ type: 'INIT', incidentId, title })}\n\n`)
 
-    const result = await swarmService.executeSwarm(
-      incidentId,
-      title,
-      description,
-      priority || 'HIGH',
-      category || 'Enterprise Workflow',
-      (step) => {
-        res.write(`data: ${JSON.stringify({ type: 'STEP', step })}\n\n`)
-      }
+    const result = await enqueueSwarm(() =>
+      runInOrg(prep.orgId, () =>
+        swarmService.executeSwarm(incidentId, title, description, priority || 'HIGH', category || 'Enterprise Workflow', (step) => {
+          res.write(`data: ${JSON.stringify({ type: 'STEP', step })}\n\n`)
+        })
+      )
     )
 
     res.write(`data: ${JSON.stringify({ type: 'COMPLETE', result })}\n\n`)

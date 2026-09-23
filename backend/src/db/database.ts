@@ -67,6 +67,15 @@ const SQLITE_SCHEMA = `
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS orgs (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    invite_code TEXT UNIQUE NOT NULL,
+    ingest_key TEXT UNIQUE NOT NULL,
+    slack_webhook_url TEXT,
+    groq_api_key TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `
 
 const POSTGRES_SCHEMA = `
@@ -120,6 +129,19 @@ const POSTGRES_SCHEMA = `
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS orgs (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    invite_code TEXT UNIQUE NOT NULL,
+    ingest_key TEXT UNIQUE NOT NULL,
+    slack_webhook_url TEXT,
+    groq_api_key TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id TEXT;
+  ALTER TABLE incidents ADD COLUMN IF NOT EXISTS org_id TEXT;
+  ALTER TABLE runbooks ADD COLUMN IF NOT EXISTS org_id TEXT;
+  CREATE INDEX IF NOT EXISTS idx_incidents_org ON incidents(org_id, created_at DESC);
 `
 
 // Rewrite `?` placeholders to $1..$n, skipping anything inside single-quoted SQL strings
@@ -206,6 +228,12 @@ function createSqliteDriver(): Driver {
       if (!cols.includes('source')) sqlite.exec('ALTER TABLE incidents ADD COLUMN source TEXT')
       if (!cols.includes('external_ref')) sqlite.exec('ALTER TABLE incidents ADD COLUMN external_ref TEXT')
       sqlite.exec('CREATE INDEX IF NOT EXISTS idx_incidents_external_ref ON incidents(external_ref)')
+      // Multi-tenancy: every user, incident and uploaded runbook belongs to an org
+      for (const table of ['users', 'incidents', 'runbooks']) {
+        const tcols = (sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name)
+        if (!tcols.includes('org_id')) sqlite.exec(`ALTER TABLE ${table} ADD COLUMN org_id TEXT`)
+      }
+      sqlite.exec('CREATE INDEX IF NOT EXISTS idx_incidents_org ON incidents(org_id, created_at DESC)')
     },
     describe() {
       return `SQLite at ${dbPath}`

@@ -1,4 +1,7 @@
-// Slack notifications via an incoming webhook (SLACK_WEBHOOK_URL).
+import { currentOrg } from './orgService.js'
+
+// Slack notifications via each team's incoming webhook (Settings page). The public demo team uses
+// the server-wide SLACK_WEBHOOK_URL.
 // Each triaged incident is posted with a button that deep-links to /incidents/:id on the web console
 // (APP_URL), where on-call can review the plan and approve it.
 
@@ -19,9 +22,15 @@ const PRIORITY_EMOJI: Record<string, string> = {
 // Slack mrkdwn needs &, <, > escaped
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-async function post(payload: unknown): Promise<void> {
-  const url = process.env.SLACK_WEBHOOK_URL
-  if (!url) return
+// Outside a team context (should not happen) nothing is posted, so one team never leaks into another's Slack
+function webhookUrl(): string | null {
+  const ctx = currentOrg()
+  return ctx ? ctx.slackWebhookUrl : null
+}
+
+async function post(payload: unknown): Promise<{ ok: boolean; error?: string }> {
+  const url = webhookUrl()
+  if (!url) return { ok: false, error: 'Slack is not connected' }
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -29,10 +38,28 @@ async function post(payload: unknown): Promise<void> {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(5000),
     })
-    if (!res.ok) console.warn(`[Slack] webhook returned HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 200)
+      console.warn(`[Slack] webhook returned HTTP ${res.status}: ${body}`)
+      return { ok: false, error: `HTTP ${res.status} ${body}` }
+    }
+    return { ok: true }
   } catch (err: any) {
     console.warn(`[Slack] webhook failed: ${err.message}`)
+    return { ok: false, error: err.message }
   }
+}
+
+export async function sendSlackTest(teamName: string, by: string): Promise<{ ok: boolean; error?: string }> {
+  return post({
+    text: `[OmniOps] Slack is connected for ${teamName}`,
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `:white_check_mark: *OmniOps is connected* for *${esc(teamName)}*\nIncidents for this team will be posted here with a Review & approve button. Test sent by ${esc(by)}.` },
+      },
+    ],
+  })
 }
 
 export async function notifyIncidentTriaged(i: {

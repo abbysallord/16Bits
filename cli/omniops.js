@@ -211,9 +211,13 @@ async function triageIncident(query, priority = 'HIGH') {
   const startTime = Date.now()
 
   try {
+    // With OMNIOPS_TOKEN or OMNIOPS_EMAIL set, runs land in your team's private workspace;
+    // without them they go to the public demo workspace
+    const headers = { 'Content-Type': 'application/json' }
+    if (process.env.OMNIOPS_TOKEN || process.env.OMNIOPS_EMAIL) headers.Authorization = `Bearer ${await getAuthToken()}`
     const res = await fetch(`${API_BASE}/api/agents/execute`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         title: query.split('\n')[0].slice(0, 80) || 'Piped Incident Error',
         description: query,

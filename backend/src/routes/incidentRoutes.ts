@@ -3,15 +3,20 @@ import crypto from 'crypto'
 import { db } from '../db/database.js'
 import { createIncidentSchema } from '../schemas/incidentSchemas.js'
 import { validate } from '../middleware/validate.js'
-import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js'
+import { requireAuth, resolveOrg, AuthenticatedRequest } from '../middleware/auth.js'
 
 export const incidentRouter = Router()
 
 // List all incidents (filtered for clean enterprise records)
-incidentRouter.get('/', async (req: Request, res: Response): Promise<void> => {
+// Signed in: your team's incidents. Signed out: the public demo workspace (empty when DEMO_ACCOUNT=off).
+incidentRouter.get('/', resolveOrg, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!req.orgId) {
+    res.json({ incidents: [] })
+    return
+  }
   const incidents = await db.all(`
-    SELECT * FROM incidents ORDER BY created_at DESC LIMIT 30
-  `) as any[]
+    SELECT * FROM incidents WHERE org_id = ? ORDER BY created_at DESC LIMIT 30
+  `, [req.orgId]) as any[]
   
   const BANNED_PATTERNS = ['fuck', 'shit', 'bitch', 'ass', 'boy', 'friend', 'dating', 'sex']
   const cleanIncidents = incidents.filter(inc => {
@@ -23,9 +28,14 @@ incidentRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 })
 
 // Get incident details with full agent execution audit trail
-incidentRouter.get('/:id', async (req: Request, res: Response): Promise<void> => {
+incidentRouter.get('/:id', resolveOrg, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const incident = await db.get('SELECT * FROM incidents WHERE id = ?', [req.params.id]) as any
-  if (!incident) {
+  if (!incident || incident.org_id !== req.orgId) {
+    // Another team's incident: signed-out visitors are told to sign in, members of other teams get 404
+    if (incident && !req.user) {
+      res.status(401).json({ error: 'Sign in with your team account to view this incident' })
+      return
+    }
     res.status(404).json({ error: 'Incident not found' })
     return
   }
@@ -50,9 +60,9 @@ incidentRouter.post('/', requireAuth, validate(createIncidentSchema), async (req
   const userId = req.user?.id || null
 
   await db.run(`
-    INSERT INTO incidents (id, title, description, priority, category, status, user_id)
-    VALUES (?, ?, ?, ?, ?, 'PENDING', ?)
-  `, [id, title, description, priority, category || 'System Incident', userId])
+    INSERT INTO incidents (id, title, description, priority, category, status, user_id, org_id)
+    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)
+  `, [id, title, description, priority, category || 'System Incident', userId, req.orgId])
 
   const created = await db.get('SELECT * FROM incidents WHERE id = ?', [id])
   res.status(201).json({

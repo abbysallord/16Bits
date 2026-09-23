@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { RunTree } from 'langsmith'
 import { db } from '../db/database.js'
 import { notifyIncidentTriaged } from './slackService.js'
+import { currentOrg } from './orgService.js'
 import { aiService } from './aiService.js'
 import { runbookService } from './runbookService.js'
 import { guardrailService } from './guardrailService.js'
@@ -188,7 +189,7 @@ Be concise, technical, and objective. Maximum 140 words.
       systemLoad: os.loadavg().map(n => Number(n.toFixed(2)))
     }
 
-    const runbookSearch = await runbookService.search(effectiveTitle + ' ' + effectiveDesc, 3)
+    const runbookSearch = await runbookService.search(effectiveTitle + ' ' + effectiveDesc, 3, { orgId: currentOrg()?.orgId ?? null })
     const matchedRunbook = runbookSearch.chosen?.runbook || null
     const runbookLabel = matchedRunbook?.title || 'None matched (no runbook in the library fits this incident)'
     const slaPolicy = SlaPolicyMatrix.getPolicy(priority)
